@@ -1,34 +1,52 @@
 import argparse
+import warnings
 from collections import defaultdict
 
 import requests
 import matplotlib.pyplot as plt
 
 # CLI flags with descriptions
-parser = argparse.ArgumentParser(description='Pull chemical shifts from BMRB and plot peak positions of amides or methyls. Currently, this only gets the data from the first entity in the entry. Not sure why...')
+parser = argparse.ArgumentParser(description='Pull chemical shifts from BMRB and plot peak positions on a simulated "spectrum". Currently, this only gets the data from the first entity in the entry.')
 parser.add_argument('entry', help='BMRB accession number')
-parser.add_argument('--methyl', action='store_true', help='Plots methyl shifts, not using this flag plots amide.')
-parser.add_argument('-r', '--residues', help='A single string (i.e. ILV) of 1-letter amino acid codes. Will only plot these residues.')
+parser.add_argument('-r', '--residues', help='Residues filter: a single string (i.e. ILV) of 1-letter amino acid codes. Will only plot these residues.')
 
-prochiral = parser.add_mutually_exclusive_group()
-prochiral.add_argument('--proR', action='store_true', help='Show only proR resonances for Leu and Val.')
-prochiral.add_argument('--proS', action='store_true', help='Show only proS resonances for Leu and Val.')
+# Special flags used for commonly used methyl and amide 2D spectra
+common = parser.add_mutually_exclusive_group()
+common.add_argument('--amide', action='store_true', help='Plot amide shifts.')
+common.add_argument('--methyl', nargs='*', choices=['proR', 'proS'], help='Plot methyl shifts, allows use of proR and proS flags for specific labeling schemes. By default plots both.')
+
 args = parser.parse_args()
 
 residue_map = {'A':'ALA', 'R':'ARG', 'N':'ASN', 'D':'ASP', 'C':'CYS', 'E':'GLU', 'Q':'GLN', 'G':'GLY', 'H':'HIS', 'I':'ILE',
                'L':'LEU', 'M':'MET', 'K':'LYS', 'F':'PHE', 'P':'PRO', 'S':'SER', 'T':'THR', 'W':'TRP', 'Y':'TYR', 'V':'VAL'}
-residues = [residue_map[r.upper()] for r in args.residues] if args.residues else residue_map.values()
-
-# Methyl atom names for ILVMAT
+# Methyl atom names for MILVAT
 methyl_atoms = {'ILE':[('CD1','HD11')], 'LEU':[('CD1','HD11'),('CD2','HD21')], 'VAL':[('CG1','HG11'),('CG2','HG21')],
                 'MET':[('CE','HE1')], 'ALA':[('CB','HB1')], 'THR':[('CG2','HG21')]}
-if args.proR:
+amide_atoms = ('N','H')
+
+if args.residues:
+    # Warn for incorrect 1-letter codes
+    bad_codes = set(args.residues.upper()) - residue_map.keys()
+    if bad_codes:
+        bad_code_string = ','.join(bad_codes)
+        warnings.warn(f'{bad_code_string} not valid 1-letter code(s)', stacklevel=2)
+    # Remove bad codes and ignore
+    residues = [residue_map.get(r.upper()) for r in args.residues if r not in bad_codes]
+    # Warn if non MILVAT residues are used with the --methyl flag
+    non_milvat = set(residues) - methyl_atoms.keys()
+    if args.methyl is not None and non_milvat:
+        res_string = ','.join(non_milvat)
+        warnings.warn(f'residues other than MILVAT: ({res_string}) were ignored when plotting methyl spectra', stacklevel=2)
+else:
+    # If no residue filter is specified use all residues
+    residues = residue_map.values()
+    
+if args.methyl == 'proR':
     del methyl_atoms['LEU'][1]
     del methyl_atoms['VAL'][1]
-if args.proS:
+if args.methyl == 'proS':
     del methyl_atoms['LEU'][0]
     del methyl_atoms['VAL'][0]
-amide_atoms = ('N','H')
 
 shift_url = f'http://webapi.bmrb.wisc.edu/v2/entry/{args.entry}?saveframe_category=assigned_chemical_shifts'
 
@@ -54,10 +72,10 @@ if residues:
 # i.e. for methyls: {LeuX : {CD1: 1H_shift, 13C_shift, CD2: 1H_shift, 13C_shift}}
 resonances = defaultdict(lambda: defaultdict(list))
 for num,res,atom,shift in trimmed_entry:
-    if not args.methyl:
+    if args.methyl is None:
         if atom in amide_atoms:
             resonances[res+num]['NH'].append(shift)
-    if args.methyl:
+    else:
         pairs = methyl_atoms.get(res)
         if pairs is None:
             continue
@@ -66,9 +84,9 @@ for num,res,atom,shift in trimmed_entry:
                 resonances[res+num][p[0]].append(shift)
 
 # Plot points on "simulated spectrum"
-fig = plt.figure(figsize=(12,12))
+fig = plt.figure()
 plt.xlabel('1H (ppm)')
-f1 = '13C (ppm)' if args.methyl else '15N (ppm)'
+f1 = '13C (ppm)' if args.methyl is not None else '15N (ppm)'
 plt.ylabel(f1)
 
 for res, atom in resonances.items():
