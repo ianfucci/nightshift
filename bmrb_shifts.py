@@ -1,4 +1,5 @@
 import argparse
+import itertools
 import warnings
 from collections import defaultdict
 
@@ -16,13 +17,13 @@ correlation.add_argument('--amide', action='store_true', help='Plot amide shifts
 correlation.add_argument('--methyl', nargs='*', choices=['proR', 'proS'], help='Plot methyl shifts, allows use of proR and proS flags for specific labeling schemes. By default plots both.')
 correlation.add_argument('--custom', nargs=2, help='Plot correlation between any two atoms (i.e. N CO).')
 args = parser.parse_args()
-args.custom = [a.upper() for a in args.custom]
 
 residue_map = {'A':'ALA', 'R':'ARG', 'N':'ASN', 'D':'ASP', 'C':'CYS', 'E':'GLU', 'Q':'GLN', 'G':'GLY', 'H':'HIS', 'I':'ILE',
                'L':'LEU', 'M':'MET', 'K':'LYS', 'F':'PHE', 'P':'PRO', 'S':'SER', 'T':'THR', 'W':'TRP', 'Y':'TYR', 'V':'VAL'}
 # Methyl atom names for MILVAT
 methyl_atoms = {'ILE':[('CD1','HD11')], 'LEU':[('CD1','HD11'),('CD2','HD21')], 'VAL':[('CG1','HG11'),('CG2','HG21')],
                 'MET':[('CE','HE1')], 'ALA':[('CB','HB1')], 'THR':[('CG2','HG21')]}
+simple_atoms = {'H','HA','N','C','CA','CB'}
 
 # Check residue filter
 if args.residues:
@@ -42,29 +43,19 @@ else:
     # If no residue filter is specified use all residues
     residues = residue_map.values()
 
-# This is the same as the methyl argument and this makes it easier to handle
-# Cmethyl and Hmethyl functionality not yet implemented
-if 'CMETHYL' in args.custom and 'HMETHYL' in args.custom:
-    args.methyl = []
-    args.custom = None
-# Make selector for Cmethyl and Hmethyl special arguments for custom
-elif 'CMETHYL' in args.custom:
-    c_selector = {}
-    for res, pairs in methyl_atoms.items():
-        c_selector[res] = [p[0] for p in pairs]
-elif 'HMETHYL' in args.custom:
-    h_selector = {}
-    for res, pairs in methyl_atoms.items():
-        h_selector[res] = [p[1] for p in pairs]
-
+# Perform correlation specific setup
+if args.custom is not None:
+    args.custom = [a.upper() for a in args.custom]
+    # This is the same as the methyl argument and this makes it easier to handle
+    if 'CMETHYL' in args.custom and 'HMETHYL' in args.custom:
+        args.methyl = []
+        args.custom = None
 if args.amide:
     # Make a dictionary similar to methyl_atoms
-    amide_atoms = dict(zip(residues, [[('N','H')]]*len(residues)))
-    # Selector is a function that returns pairs of atoms given a residue
-    selector = amide_atoms
+    selector = dict(zip(residues, [[('N','H')]]*len(residues)))
 # args.methyl will be an empty list for default or a list ['proR'] or ['proS']
 # will be None for --amide or --custom
-elif args.methyl is not None:
+if args.methyl is not None:
     for res, pairs in methyl_atoms.items():
         if res in {'LEU','VAL'} and args.methyl:
             # Filter out prochiral atoms when given proR/proS flags
@@ -74,8 +65,7 @@ elif args.methyl is not None:
             elif args.methyl[0] == 'proS':
                 pairs = [p for p in pairs if not p[0].endswith('1')]
                 methyl_atoms[res] = pairs
-    # Selector is a function that returns pairs of atoms given a residue
-    selector = methyl_atoms
+    selector = methyl_atoms    
 
 shift_url = f'http://webapi.bmrb.wisc.edu/v2/entry/{args.entry}?saveframe_category=assigned_chemical_shifts'
 
@@ -92,51 +82,60 @@ for entry in bmrb_dict[args.entry]['assigned_chemical_shifts'][0]['loops']:
     if entry.get('category') and entry['category'] == '_Atom_chem_shift':
         bmrb_assignments = entry['data']
 
+# Parse BMRB assignments file storing relevant fields
 # Only use residue number, residue name, atom name and chemical shift and filter residues
 assignments = defaultdict(dict)
+encountered_atoms = defaultdict(list)
 for ba in bmrb_assignments:
     if ba[6] in residues:
-        # format {RES<num>: {atom1: shift, atom2: shift}}
+        # format for assignments dict {RES<num>: {atom1: shift, atom2: shift...}}
         assignments[ba[6]+ba[5]][ba[7]] = float(ba[10])
-        print(ba[6],ba[7])
+        if encountered_atoms.get(ba[6]) is None or ba[7] not in encountered_atoms[ba[6]]:
+            encountered_atoms[ba[6]].append(ba[7])
+
+# Generate selectors for custom correlations from encountered atom names
+if args.custom is not None:
+    selector_dicts = []
+    for custom_atom in args.custom:
+        # Cmethyl and Hmethyl already defined by modifying methyl_atoms
+        if custom_atom == 'CMETHYL':
+            c_selector = {}
+            for res, pairs in methyl_atoms.items():
+                c_selector[res] = [p[0] for p in pairs]
+            selector_dicts.append(c_selector)
+        elif custom_atom == 'HMETHYL':
+            h_selector = {}
+            for res, pairs in methyl_atoms.items():
+                h_selector[res] = [p[1] for p in pairs]
+            selector_dicts.append(h_selector)
+        # If the atom is not a simple case match against the first letters of the atom IDs
+        elif custom_atom not in simple_atoms:
+            custom_selector = {}
+            for res, atoms in encountered_atoms.items():
+                custom_selector[res] = [a for a in atoms if a.startswith(custom_atom)]
+            selector_dicts.append(custom_selector)
+        # custom_atom is the simple case
+        else:
+            simple_selector = dict(zip(residues, [[(custom_atom)]]*len(residues)))
+            selector_dicts.append(simple_selector)
+    selector = {}
+    # Does not matter which is longer, will either be filtered here or when plotting
+    for res in selector_dicts[0]:
+        try:
+            selector[res] = list(itertools.product(selector_dicts[0][res], selector_dicts[1][res]))
+        except KeyError:
+            # Key was not present in both dicts
+            continue
 
 # Data structure containing selected atoms' peaks
 resonances = defaultdict(dict)
 for name, atom_dict in assignments.items():
     res = name[:3]
-    # Custom atom names run into a lot of different cases
-    if args.custom is not None:
-        simple = {'H','N','C','CA','CB'}
-        # Simple case, just index atom dict based on atom name
-        if args.custom[0] in simple and args.custom[1] in simple:
-            resonances[name]['_'.join(args.custom)] = (atom_dict.get(args.custom[1]), atom_dict.get(args.custom[0]))
-        # Only the first argument is the simple case
-        elif args.custom[0] in simple and args.custom[1] not in simple:
-            second = atom_dict.get(args.custom[0])
-            for atom, shift in atom_dict.items():
-                if atom.startswith(args.custom[1]):
-                    resonances[name][args.custom[0]+'_'+atom] = (shift, second)
-        # Only the second argument is the simple case
-        elif args.custom[1] in simple and args.custom[0] not in simple:
-            first = atom_dict.get(args.custom[1])
-            for atom, shift in atom_dict.items():
-                if atom.startswith(args.custom[0]):
-                    resonances[name][atom+'_'+args.custom[1]] = (first, shift)
-        # Both need to match the first letters of the atom ID
-        else:
-            # Iterate through twice to capture all matches
-            for atom, shift in atom_dict.items():
-                if atom.startswith(args.custom[0]):
-                    for atom2, shift2 in atom_dict.items():
-                        if atom2.startswith(args.custom[1]):
-                            resonances[name][atom+'_'+atom2] = (shift2, shift)
-    else:
-        # amide and methyl are special cases, used predefined selectors
-        pairs = selector.get(res)
-        if pairs is not None:
-            for p in pairs:
-                # indices are swapped for plotting purposes, prevents doing it later
-                resonances[name]['_'.join(p)] = (atom_dict.get(p[1]), atom_dict.get(p[0]))
+    pairs = selector.get(res)
+    if pairs is not None:
+        for p in pairs:
+            # indices are swapped for plotting purposes, prevents doing it later
+            resonances[name]['_'.join(p)] = (atom_dict.get(p[1]), atom_dict.get(p[0]))
 
 # Plot points on "simulated spectrum"
 fig = plt.figure()
