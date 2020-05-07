@@ -44,12 +44,19 @@ else:
     residues = residue_map.values()
 
 # Perform correlation specific setup
+minus_one = False
 if args.custom is not None:
     args.custom = [a.upper() for a in args.custom]
     # This is the same as the methyl argument and this makes it easier to handle
     if 'CMETHYL' in args.custom and 'HMETHYL' in args.custom:
         args.methyl = []
         args.custom = None
+    for i, custom_atom in enumerate(args.custom):
+        if custom_atom.endswith('-1'):
+            minus_one = True
+            # Save which atom choice has the (i-1)
+            args.custom[i] = custom_atom.split('-')[0]
+            prev_index = i
 if args.amide:
     # Make a dictionary similar to methyl_atoms
     selector = dict(zip(residues, [[('N','H')]]*len(residues)))
@@ -83,15 +90,14 @@ for entry in bmrb_dict[args.entry]['assigned_chemical_shifts'][0]['loops']:
         bmrb_assignments = entry['data']
 
 # Parse BMRB assignments file storing relevant fields
-# Only use residue number, residue name, atom name and chemical shift and filter residues
+# Only use residue number, residue name, atom name and chemical shift
 assignments = defaultdict(dict)
 encountered_atoms = defaultdict(list)
 for ba in bmrb_assignments:
-    if ba[6] in residues:
-        # format for assignments dict {RES<num>: {atom1: shift, atom2: shift...}}
-        assignments[ba[6]+ba[5]][ba[7]] = float(ba[10])
-        if encountered_atoms.get(ba[6]) is None or ba[7] not in encountered_atoms[ba[6]]:
-            encountered_atoms[ba[6]].append(ba[7])
+    # format for assignments dict {RES<num>: {atom1: shift, atom2: shift...}}
+    assignments[ba[6]+ba[5]][ba[7]] = float(ba[10])
+    if encountered_atoms.get(ba[6]) is None or ba[7] not in encountered_atoms[ba[6]]:
+        encountered_atoms[ba[6]].append(ba[7])
 
 # Generate selectors for custom correlations from encountered atom names
 if args.custom is not None:
@@ -129,13 +135,41 @@ if args.custom is not None:
 
 # Data structure containing selected atoms' peaks
 resonances = defaultdict(dict)
-for name, atom_dict in assignments.items():
-    res = name[:3]
-    pairs = selector.get(res)
-    if pairs is not None:
-        for p in pairs:
-            # indices are swapped for plotting purposes, prevents doing it later
-            resonances[name]['_'.join(p)] = (atom_dict.get(p[1]), atom_dict.get(p[0]))
+# For an i-1 correlation
+if minus_one:
+    # Split into two iterators prev is residue (i-1) curr is residue (i)
+    prev, curr = itertools.tee(assignments.items(), 2)
+    curr = itertools.islice(curr, 1, None)
+    lookbehind = itertools.zip_longest(prev, curr, fillvalue=None)
+
+    curr_index = 0 if prev_index == 1 else 1
+    for prev_assign, curr_assign in lookbehind:
+        try:
+            prev_atom_dict = prev_assign[1]
+            curr_atom_dict = curr_assign[1]
+            curr_res = curr_assign[0][:3]
+            if int(curr_assign[0][3:]) - 1 == int(prev_assign[0][3:]):
+                pairs = selector.get(curr_res)
+                if curr_res in residues and pairs is not None:
+                    for p in pairs:
+                        if curr_index < prev_index:
+                            resonances[curr_assign[0]]['_'.join(p)] = (prev_atom_dict.get(p[prev_index]), curr_atom_dict.get(p[curr_index]))
+                        else:
+                            resonances[curr_assign[0]]['_'.join(p)] = (curr_atom_dict.get(p[curr_index]), prev_atom_dict.get(p[prev_index]))
+        except TypeError:
+            # Reached None the end of the curr iterator
+            continue
+# For a typical spectrum
+else:
+    for name, atom_dict in assignments.items():
+        res = name[:3]
+        pairs = selector.get(res)
+        # Apply residue filter
+        if res in residues and pairs is not None:
+            for p in pairs:
+                # indices are swapped for plotting purposes, prevents doing it later
+                resonances[name]['_'.join(p)] = (atom_dict.get(p[1]), atom_dict.get(p[0]))
+
 
 # Plot points on "simulated spectrum"
 fig = plt.figure()
