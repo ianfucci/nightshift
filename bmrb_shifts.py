@@ -1,3 +1,36 @@
+#!/usr/bin/env python
+
+"""This script produces simulated 2D spectra for protein entries from the BMRB
+
+* Peak assignments are pulled using the BMRB API (https://github.com/uwbmrb/BMRB-API)
+
+* Simulated 1H-15N HSQC spetra can be plotted using the --amide flag
+
+* Simulated 1H-13C HMQC spetra can be plotted using the --methyl flag, additionally
+providing the optional 'proS' or 'proR' will filter LV atoms by prochirality
+
+* Arbitrary correlations between atoms can be plotted using the --custom flag and providing
+two atom names (i.e. C for C=O carbon, H for amide proton, CD for delta carbon)
+
+* These correlations may not be experimentally obtainable and should be used judiciously
+
+* Adding '-1' to the end of a custom atom name allows correlation to the i-1 residue:
+> python bmrb_shifts.py <entry_number> --custom CA-1 N
+
+* Plotted residues can also be filtered using the -r or --residues flag:
+> python bmrb_shifts.py <entry_number> --methyl proR -r ILV
+
+Use: python bmrb_shifts.py -h for more help (WIP)
+
+Examples
+--------
+2D NCO:
+> python bmrb_shift.py <entry_number> -custom C-1 N
+
+2D N(CO)CA:
+> python bmrb_shift.py <entry_number> -custom CA-1 N
+"""
+
 import argparse
 import itertools
 import warnings
@@ -18,12 +51,15 @@ correlation.add_argument('--methyl', nargs='*', choices=['proR', 'proS'], help='
 correlation.add_argument('--custom', nargs=2, help='Plot correlation between any two atoms (i.e. N CO).')
 args = parser.parse_args()
 
-residue_map = {'A':'ALA', 'R':'ARG', 'N':'ASN', 'D':'ASP', 'C':'CYS', 'E':'GLU', 'Q':'GLN', 'G':'GLY', 'H':'HIS', 'I':'ILE',
-               'L':'LEU', 'M':'MET', 'K':'LYS', 'F':'PHE', 'P':'PRO', 'S':'SER', 'T':'THR', 'W':'TRP', 'Y':'TYR', 'V':'VAL'}
+residue_map = {'A':'ALA', 'R':'ARG', 'N':'ASN', 'D':'ASP', 'C':'CYS', 'E':'GLU',
+               'Q':'GLN', 'G':'GLY', 'H':'HIS', 'I':'ILE', 'L':'LEU', 'M':'MET',
+               'K':'LYS', 'F':'PHE', 'P':'PRO', 'S':'SER', 'T':'THR', 'W':'TRP',
+               'Y':'TYR', 'V':'VAL'}
 # Methyl atom names for MILVAT
-methyl_atoms = {'ILE':[('CD1','HD11')], 'LEU':[('CD1','HD11'),('CD2','HD21')], 'VAL':[('CG1','HG11'),('CG2','HG21')],
-                'MET':[('CE','HE1')], 'ALA':[('CB','HB1')], 'THR':[('CG2','HG21')]}
-simple_atoms = {'H','HA','N','C','CA','CB'}
+methyl_atoms = {'ILE':[('CD1', 'HD11')], 'LEU':[('CD1', 'HD11'), ('CD2', 'HD21')],
+                'VAL':[('CG1', 'HG11'), ('CG2', 'HG21')], 'MET':[('CE', 'HE1')],
+                'ALA':[('CB', 'HB1')], 'THR':[('CG2', 'HG21')]}
+simple_atoms = {'H', 'HA', 'N', 'C', 'CA', 'CB'}
 
 # Check residue filter
 if args.residues:
@@ -38,7 +74,7 @@ if args.residues:
     non_milvat = set(residues) - methyl_atoms.keys()
     if args.methyl is not None and non_milvat:
         res_string = ','.join(non_milvat)
-        warnings.warn(f'residues other than MILVAT: ({res_string}) were ignored when plotting methyl spectra')
+        warnings.warn(f'residues other than MILVAT: ({res_string}) are ignored when plotting')
 else:
     # If no residue filter is specified use all residues
     residues = residue_map.values()
@@ -59,12 +95,12 @@ if args.custom is not None:
             prev_index = i
 if args.amide:
     # Make a dictionary similar to methyl_atoms
-    selector = dict(zip(residues, [[('N','H')]]*len(residues)))
+    selector = dict(zip(residues, [[('N', 'H')]]*len(residues)))
 # args.methyl will be an empty list for default or a list ['proR'] or ['proS']
 # will be None for --amide or --custom
 if args.methyl is not None:
     for res, pairs in methyl_atoms.items():
-        if res in {'LEU','VAL'} and args.methyl:
+        if res in {'LEU', 'VAL'} and args.methyl:
             # Filter out prochiral atoms when given proR/proS flags
             if args.methyl[0] == 'proR':
                 pairs = [p for p in pairs if not p[0].endswith('2')]
@@ -72,7 +108,7 @@ if args.methyl is not None:
             elif args.methyl[0] == 'proS':
                 pairs = [p for p in pairs if not p[0].endswith('1')]
                 methyl_atoms[res] = pairs
-    selector = methyl_atoms    
+    selector = methyl_atoms
 
 shift_url = f'http://webapi.bmrb.wisc.edu/v2/entry/{args.entry}?saveframe_category=assigned_chemical_shifts'
 
@@ -168,8 +204,7 @@ else:
         if res in residues and pairs is not None:
             for p in pairs:
                 # indices are swapped for plotting purposes, prevents doing it later
-                resonances[name]['_'.join(p)] = (atom_dict.get(p[1]), atom_dict.get(p[0]))
-
+                resonances[name]['_'.join(p)] = (atom_dict.get(p[1]), atom_dict.get(p[0]))\
 
 # Plot points on "simulated spectrum"
 fig = plt.figure()
@@ -178,7 +213,7 @@ fig = plt.figure()
 if args.methyl is not None:
     plt.ylabel('13C (ppm)')
     plt.xlabel('1H (ppm)')
-elif args.amide: 
+elif args.amide:
     plt.ylabel('15N (ppm)')
     plt.xlabel('1H (ppm)')
 # Axes labels for custom are the atom IDs
@@ -199,8 +234,11 @@ else:
     plt.xlabel(f'{args.custom[1]} - {nucleus2} (ppm)')
 
 # Palette of distinct colors for each residue
-residue_colors = {'ALA':'maroon', 'ARG':'red', 'ASN':'pink', 'ASP':'brown', 'CYS':'orange', 'GLU':'coral', 'GLN':'olive', 'GLY':'magenta', 'HIS':'khaki', 'ILE':'purple',
-                  'LEU':'green', 'MET':'navy', 'LYS':'blue', 'PHE':'lime', 'PRO':'lightgreen', 'SER':'aquamarine', 'THR':'cyan', 'TRP':'black', 'TYR':'grey', 'VAL':'yellow'}
+residue_colors = {'ALA':'maroon', 'ARG':'red', 'ASN':'pink', 'ASP':'brown',
+                  'CYS':'orange', 'GLU':'coral', 'GLN':'olive', 'GLY':'magenta',
+                  'HIS':'khaki', 'ILE':'purple', 'LEU':'green', 'MET':'navy',
+                  'LYS':'blue', 'PHE':'lime', 'PRO':'lightgreen', 'SER':'aquamarine',
+                  'THR':'cyan', 'TRP':'black', 'TYR':'grey', 'VAL':'yellow'}
 
 for name, pairs in resonances.items():
     res = name[:3]
