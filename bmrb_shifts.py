@@ -43,6 +43,11 @@ import matplotlib.pyplot as plt
 parser = argparse.ArgumentParser(description='Pull assigned chemical shifts from BMRB entry and plot peak positions on a simulated 2D "spectrum".')
 parser.add_argument('entry', help='BMRB accession number')
 parser.add_argument('-r', '--residues', help='Residues filter: a single string (i.e. ILV) of 1-letter amino acid codes. Will only plot these residues.')
+parser.add_argument('--offset', default='0', help='Index offset. BMRB indices starts at 1 which may not reflect the true residue number')
+parser.add_argument('--csv', help='Name for output file of shifts in CSV format for later plotting.')
+parser.add_argument('--nolabels', action='store_true', help='Plot spectrum without peak labels.')
+parser.add_argument('--showlegend', action='store_true', help='Show a legend on the spectrum with residue colors.')
+parser.add_argument('-o', '--output', help='Save spectrum to file and do not preview plot with matplotlib.')
 
 # Flags to set which correlation will be depicted
 correlation = parser.add_mutually_exclusive_group()
@@ -204,7 +209,7 @@ else:
         if res in residues and pairs is not None:
             for p in pairs:
                 # indices are swapped for plotting purposes, prevents doing it later
-                resonances[name]['_'.join(p)] = (atom_dict.get(p[1]), atom_dict.get(p[0]))\
+                resonances[name]['_'.join(p)] = (atom_dict.get(p[1]), atom_dict.get(p[0]))
 
 # Plot points on "simulated spectrum"
 fig = plt.figure()
@@ -240,22 +245,45 @@ residue_colors = {'ALA':'maroon', 'ARG':'red', 'ASN':'pink', 'ASP':'brown',
                   'LYS':'blue', 'PHE':'lime', 'PRO':'lightgreen', 'SER':'aquamarine',
                   'THR':'cyan', 'TRP':'black', 'TYR':'grey', 'VAL':'yellow'}
 
+# Create output file
+if args.csv:
+    output = open(args.csv, 'w')
+
+legend = {}
 for name, pairs in resonances.items():
     res = name[:3]
+    idx = int(name[3:]) + int(args.offset)
     for atoms, peak in pairs.items():
         if None not in peak:
             # Plot peak centers colored by residue
-            plt.scatter(*peak, c=residue_colors[res])
+            handle = plt.scatter(*peak, c=residue_colors[res])
+            legend[res] = handle
             # Label each peak, add atom ID to prochiral atoms
             if (args.methyl is not None and res in {'LEU', 'VAL'}) or args.custom is not None:
-                peak_label = name + atoms.split('_')[0]
-                plt.annotate(peak_label, peak)
+                peak_label = res + str(idx) + atoms.split('_')[0]
+                if not args.nolabels:
+                    plt.annotate(peak_label, peak)
+                if args.csv:
+                    output.write(f'{peak_label},' + ','.join(str(p) for p in peak) + '\n')
             else:
-                plt.annotate(name, peak)
+                if not args.nolabels:
+                    plt.annotate(f'{res}{idx}', peak)
+                if args.csv:
+                    output.write(f'{res}{idx},' + ','.join(str(p) for p in peak) + '\n')
 
+if args.nolabels or args.showlegend:
+    sort_legend = {k: v for k, v in sorted(legend.items())}
+    plt.legend(sort_legend.values(), sort_legend.keys())
+    
 # Invert axes
 plt.gca().invert_xaxis()
 plt.gca().invert_yaxis()
 
-plt.show()
+if args.csv:
+    output.close()
+
+if not args.output:
+    plt.show()
+else:
+    plt.savefig(args.output, dpi=300)
 plt.close()
