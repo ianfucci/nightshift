@@ -1,35 +1,7 @@
 #!/usr/bin/env python
 
-"""This script produces simulated 2D spectra for protein entries from the BMRB
-
-* Peak assignments are pulled using the BMRB API (https://github.com/uwbmrb/BMRB-API)
-
-* Simulated 1H-15N HSQC spetra can be plotted using the --amide flag
-
-* Simulated 1H-13C HMQC spetra can be plotted using the --methyl flag, additionally
-providing the optional 'proS' or 'proR' will filter LV atoms by prochirality
-
-* Arbitrary correlations between atoms can be plotted using the --custom flag and providing
-two atom names (i.e. C for C=O carbon, H for amide proton, CD for delta carbon)
-
-* These correlations may not be experimentally obtainable and should be used judiciously
-
-* Adding '-1' to the end of a custom atom name allows correlation to the i-1 residue:
-> python bmrb_shifts.py <entry_number> --custom CA-1 N
-
-* Plotted residues can also be filtered using the -r or --residues flag:
-> python bmrb_shifts.py <entry_number> --methyl proR -r ILV
-
-Use: python bmrb_shifts.py -h for more help (WIP)
-
-Examples
---------
-2D NCO:
-> python bmrb_shift.py <entry_number> -custom C-1 N
-
-2D N(CO)CA:
-> python bmrb_shift.py <entry_number> -custom CA-1 N
-"""
+'''This is the main script to produce simulated 2D spectra for protein entries from the BMRB
+'''
 
 import argparse
 import itertools
