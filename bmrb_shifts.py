@@ -98,9 +98,30 @@ if list(bmrb_dict.keys())[0] == 'error':
     raise KeyError(bmrb_dict['error'])
 
 # Find where assignments are stored in BMRB file
-for entry in bmrb_dict[args.entry]['assigned_chemical_shifts'][0]['loops']:
-    if entry.get('category') and entry['category'] == '_Atom_chem_shift':
-        bmrb_assignments = entry['data']
+# If there are multiple data sets, allow user to choose
+entity_selction = 0
+if len(bmrb_dict[args.entry]['assigned_chemical_shifts']) > 1:
+    print('More than one entry, please select:')
+    for i,shift_dict in enumerate(bmrb_dict[args.entry]['assigned_chemical_shifts']):
+        for tag in shift_dict['tags']:
+            # Sf_framecode contains the entity name
+            if tag[0] == 'Sf_framecode':
+                print(f'({i}) {tag[1]}')
+    # Handle invalid inputs, uses index variable i from for loop above
+    while True:
+        try:
+            entity_selction = int(input('> '))
+            if 0 <= entity_selction <= i:
+                break
+            else:
+                entity_selction = print(f'Invalid selection please choose a number <= {i}.')
+        except ValueError:
+            entity_selction = print(f'Invalid selection, please input a number <= {i}.')
+
+# Make dictionary of shift assignments
+for shift_dict in bmrb_dict[args.entry]['assigned_chemical_shifts'][entity_selction]['loops']:
+    if shift_dict.get('category') == '_Atom_chem_shift':
+        bmrb_assignments = shift_dict['data']
 
 # Parse BMRB assignments file storing relevant fields
 # Only use residue number, residue name, atom name and chemical shift
