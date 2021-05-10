@@ -87,7 +87,7 @@ if args.methyl is not None:
                 methyl_atoms[res] = pairs
     selector = methyl_atoms
 
-shift_url = f'http://webapi.bmrb.wisc.edu/v2/entry/{args.entry}?saveframe_category=assigned_chemical_shifts'
+shift_url = f'http://api.bmrb.io/v2/entry/{args.entry}?saveframe_category=assigned_chemical_shifts'
 
 # Use BMRB API to get entry number's assigned chemical shifts
 with requests.get(shift_url) as r:
