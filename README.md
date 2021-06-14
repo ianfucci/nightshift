@@ -36,26 +36,26 @@ Two major use cases are getting an idea what a amide or methyl spectrum of your 
 
 To simulate 1H-15N HSQC spetra can be plotted using the `--amide` flag
 
-`python bmrb_shifts.py 4493 --amide`
+`python bmrb_shifts.py get 4493 --amide`
 
 Simulate 1H-13C HMQC spetra can be plotted using the `--methyl` flag, additionally
 providing the optional `proS` or `proR` will filter LV atoms by prochirality
 
-`python bmrb_shifts.py 4493 --methyl proS`
+`python bmrb_shifts.py get 4493 --methyl proS`
 
 All plots can be filtered based on residue type by passing the `--residues` or `-r` flag and providing one-letter amino acid codes. For instance an ILV methyl labeled spectrum can be plotted using
 
-`python bmrb_shifts.py 4493 --methyl -r ILV`
+`python bmrb_shifts.py get 4493 --methyl -r ILV`
 
 ### Custom correlations
 
 For arbitrary correlations use the `--custom` flag followed by two atom names. Consider yourself warned that labeling schemes and/or experiments to produce these correlations may not (currently) exist. Atoms for custom correlations are specified using standard PDB atom names: H for amide proton, N for amide nitrogen, C for carbonyl carbon, CA for alpha carbon, HA for alpha proton and so on. FOr particular residues two or more atoms may exist at a position (i.e. CG for Val could be CG1 or CG2). To specify both CG1 and CG2 for Val pass CG
 
-`python bmrb_shifts.py 4493 --custom CG CA -r V`
+`python bmrb_shifts.py get 4493 --custom CG CA -r V`
 
 or specify the full atom name to only get those atoms
 
-`python bmrb_shifts.py 4493 --custom CG1 CA -r V`
+`python bmrb_shifts.py get 4493 --custom CG1 CA -r V`
 
 Two special atom names also exist for custom correlations: `Hmethyl` and `Cmethyl`. Which correspond to these atoms in MILVAT residues and are the same atoms selected by using the `--methyl` flag.
 
@@ -70,11 +70,11 @@ Two special atom names also exist for custom correlations: `Hmethyl` and `Cmethy
 
 This allows for correlations of methyl groups to any other atom to be plotted. For instance Cmethyl to CA
 
-`python bmrb_shifts.py 4493 --custom Cmethyl CA -r ILV`
+`python bmrb_shifts.py get 4493 --custom Cmethyl CA -r ILV`
 
 Adding '-1' to the end of a custom atom name allows correlation to the _i_-1 residue. For instance correlation of the CO of the _i_-1 residue to the amide N of the _i_ residue
 
-`python bmrb_shifts.py 4493 --custom C-1 N`
+`python bmrb_shifts.py get 4493 --custom C-1 N`
 
 ### Other options
 
@@ -87,7 +87,7 @@ Formatting options include:
 
 A csv file containing the label and chemical shifts of both atoms can be saved using the `--csv` flag and providing a file name
 
-`python bmrb_shifts.py 4493 --methyl -r ILV --csv output.csv`
+`python bmrb_shifts.py get 4493 --methyl -r ILV --csv output.csv`
 
 this can be opened in other software to generate plots with different formatting.
 Also the auxiliary script `plot_outputs.py` can be used to overlay multiple spectra (i.e. different domains of the same protein or a protein complex).
@@ -95,7 +95,7 @@ Also the auxiliary script `plot_outputs.py` can be used to overlay multiple spec
 This example is nonsense, but illustrates how it could be done. 
 First, generate two output files
 
-`python bmrb_shifts.py 4493 --amide --csv output1.csv`
+`python bmrb_shifts.py get 4493 --amide --csv output1.csv`
 
 `python bmrb_shifts.py 3433 --amide --csv output2.csv`
 
@@ -108,28 +108,28 @@ This script also accepts the `--showlegend` and `--nolabels` flags.
 ## Interesting examples
 - ILV methyl spectrum:
 
-  `python bmrb_shifts.py 4493 --methyl -r ILV`
+  `python bmrb_shifts.py get 4493 --methyl -r ILV`
 
 - ILV methyl spectrum with proR LV:
 
-  `python bmrb_shifts.py 4493 --methyl proR -r ILV`
+  `python bmrb_shifts.py get 4493 --methyl proR -r ILV`
 
 - Amide spectrum of only lysines and arginines:
 
-  `python bmrb_shifts.py 4493 --amide -r KR`
+  `python bmrb_shifts.py get 4493 --amide -r KR`
 
 - 2D HMBC-HMQC (intra-residue methyl-methyl correlations):
 
-  `python bmrb_shifts.py 4493 --custom Cmethyl Cmethyl -r LV`
+  `python bmrb_shifts.py get 4493 --custom Cmethyl Cmethyl -r LV`
 
 - 2D NCO:
 
-  `python bmrb_shifts.py 4493 --custom C-1 N`
+  `python bmrb_shifts.py get 4493 --custom C-1 N`
 
 - Arg/Lys side chain carbon correlations (a la [Pritchard and Hansen, 2019](https://doi.org/10.1038/s41467-019-09743-4))
   
-  `python bmrb_shifts.py 4493 --custom CG CD -r R --csv 4493_arg.csv`
+  `python bmrb_shifts.py get 4493 --custom CG CD -r R --csv 4493_arg.csv`
   
-  `python bmrb_shifts.py 4493 --custom CD CE -r K --csv 4493_lys.csv`
+  `python bmrb_shifts.py get 4493 --custom CD CE -r K --csv 4493_lys.csv`
   
-  `python plot_output.py 4493_arg.csv 4493_lys.csv --showlegend`
+  `python bmrb_shifts.py plot 4493_arg.csv 4493_lys.csv --showlegend`
