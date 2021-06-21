@@ -7,10 +7,10 @@ import sys
 
 import matplotlib.pyplot as plt
 
-from nightshift.bmrb import get_bmrb_shifts, bmrb_instant_search, open_bmrb_page
+from nightshift import bmrb
 from nightshift import constants
 from nightshift import plotting
-import nightshift.selector
+from nightshift.selector import Selector, AmideSelector, MethylSelector, AdvancedSelector
 
 def run_cli() -> None:
     parser = argparse.ArgumentParser(description='Tools for plotting simulated NMR spectra from assigned chemical shifts in the BMRB.')
@@ -36,9 +36,10 @@ def run_cli() -> None:
     correlation.add_argument('--methyl', action='store_true', help='Plot methyl shifts, allows use of --proR and --proS flags for specific labeling schemes. By default plots both.')
     correlation.add_argument('--custom', nargs='*', help='Plot correlation between any two or three atoms (i.e. N C). Including +<number> or -<number> after an atom name allows for inter-residue correlations (i.e. H N C-1) Also supports HMETHYL and CMETHYL and proR/proS.')
 
-    prochiral = get_parser.add_mutually_exclusive_group()
-    prochiral.add_argument('--proR', action='store_true', help='Choose to plot only proR peaks for Leu and Val. Works with --methyl and --custom')
-    prochiral.add_argument('--proS', action='store_true', help='Choose to plot only proS peaks for Leu and Val. Works with --methyl and --custom')
+    atom_filters = get_parser.add_mutually_exclusive_group()
+    atom_filters.add_argument('--sidechains', action='store_true', help='Choose to plot side chains of Asn and Gln. Works with --amide')
+    atom_filters.add_argument('--proR', action='store_true', help='Choose to plot only proR peaks for Leu and Val. Works with --methyl and --custom')
+    atom_filters.add_argument('--proS', action='store_true', help='Choose to plot only proS peaks for Leu and Val. Works with --methyl and --custom')
     get_parser.set_defaults(func=get)
     
     # Allows spectra saved to CSV files to be replotted or superimposed
@@ -84,17 +85,22 @@ def get(args):
         residues = list(constants.ONE_LETTER_TO_THREE_LETTER.values())
 
     # Get data from BMRB
-    entry_data = get_bmrb_shifts(args.entry)
+    entry_data = bmrb.get_bmrb_shifts(args.entry)
     if entry_data is None:
         sys.exit(1)
 
     # Generate selector objects
     if args.amide:
-        selector = nightshift.selector.AmideSelector(residues)
+        selector = AmideSelector(residues)
+        records = selector.get_correlations(entry_data, sidechains=args.sidechains)
     elif args.methyl:
-        selector = nightshift.selector.MethylSelector(residues)
+        selector = MethylSelector(residues)
+        records = selector.get_correlations(entry_data, proR=args.proR, proS=args.proS)
+    elif all(atom in constants.SIMPLE_ATOMS for atom in args.custom):
+        selector = Selector(residues, args.custom)
+        records = selector.get_correlations(entry_data)
     else:
-        # Custom correlation setup
+        # Advanced correlation setup
         args.custom = [a.upper() for a in args.custom]
         plus_minus = [0]*len(args.custom)
         atoms = []
@@ -117,11 +123,11 @@ def get(args):
             else:
                 plus_minus = [pm - abs_min for pm in plus_minus]
             logging.warn(f"No 'i-residue' found. Adjusted by indicies by {abs_min}.")
-        selector = nightshift.selector.Selector(residues, tuple(atoms), plus_minus=plus_minus)
+        selector = AdvancedSelector(residues, tuple(atoms), plus_minus=plus_minus)
     
-    if args.label is not None:
-        args.label -= 1
-    records = selector.get_correlations(entry_data, label=args.label, proR=args.proR, proS=args.proS)
+        if args.label is not None:
+            args.label -= 1
+        records = selector.get_correlations(entry_data, label=args.label, proR=args.proR, proS=args.proS)
     
     seq_nums = [int(record.label[3:]) for record in records]
     seq_min = min(seq_nums)
@@ -200,7 +206,7 @@ def search(args: argparse.Namespace) -> None:
         terms = ' '.join(args.terms)
     else:
         terms = ''
-    bmrb_instant_search(terms)
+    bmrb.bmrb_instant_search(terms)
 
 def website(args: argparse.Namespace) -> None:
-    open_bmrb_page(args.entry)
+    bmrb.open_bmrb_page(args.entry)

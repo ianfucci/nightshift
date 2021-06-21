@@ -7,12 +7,82 @@ from nightshift import constants
 from nightshift.bmrb import BMRBEntity
 
 class Selector:
-    '''Custom correlations'''
-    def __init__(self, residues: List[str], atoms: Tuple[str], *, plus_minus: List[int]) -> None:
+    '''Defines selector for any correlations in constants.SIMPLE_ATOMS'''
+    def __init__(self, residues: List[str], atoms: Tuple[str]) -> None:
         self.residues = residues
         self.atoms = atoms
-        self.plus_minus = plus_minus
     
+    def get_selections(self) -> Dict[str, List[Tuple[str]]]:
+        return {residue: [self.atoms] for residue in self.residues}
+
+    def get_correlations(self, entity: BMRBEntity, **kwargs) -> List[NamedTuple]:
+        # Group atoms by residue with each item is all assigned shifts for that residue
+        selections = self.get_selections(**kwargs) # allows subclasses to send kwargs
+        residue_shifts = [list(g) for _, g in itertools.groupby(entity.shifts, key=attrgetter('Seq_ID'))]
+        NightshiftRecord = namedtuple('NightshiftRecord', ['label'] + list(self.atoms))
+        records = []
+        for residue in residue_shifts:
+            try:
+                residue_type = residue[0].Comp_ID
+                label = residue[0].Comp_ID + residue[0].Seq_ID
+                correlations = selections[residue_type]
+                for correlation in correlations:
+                    # correlation has to be  first in the list comp to preserve order
+                    selected_atoms = [float(atom.Val)
+                                      for spin in correlation
+                                      for atom in residue 
+                                      if atom.Atom_ID == spin]
+                    records.append(NightshiftRecord(label, *selected_atoms))
+            except (KeyError, TypeError):
+                # KeyError: residue filtered out
+                # TypeError: not all atoms in correlation have assigned shifts
+                continue
+        return records           
+
+class AmideSelector(Selector):
+    def __init__(self, residues: List[str]) -> None:
+        super().__init__(residues, ('H', 'N'))
+    
+    def get_selections(self, *, sidechains=False) -> Dict[str, List[Tuple[str]]]:
+        # Potentially add a flag to show side chain GLN/ASN
+        residue_selections = super().get_selections()
+        if 'TRP' in self.residues:
+            residue_selections['TRP'].append(('HE1', 'NE1'))
+        if sidechains:
+            if 'ASN' in self.residues:
+                residue_selections['ASN'].append(('HD21','ND2'))
+                residue_selections['ASN'].append(('HD22','ND2'))
+            if 'GLN' in self.residues:
+                residue_selections['GLN'].append(('HE21','NE2'))
+                residue_selections['GLN'].append(('HE22','NE2'))
+        return residue_selections
+
+class MethylSelector(Selector):
+    def __init__(self, residues: List[str]) -> None:
+        methyl_residues = [residue 
+                           for residue in residues
+                           if residue in constants.METHYL_ATOMS.keys()]
+        super().__init__(methyl_residues, ('HMETHYL', 'CMETHYL'))
+    
+    def get_selections(self, *, proR=False, proS=False) -> Dict[str, List[Tuple[str]]]:
+        # Need to do proR, proS
+        methyl_selection = constants.METHYL_ATOMS
+        # Filter out prochiral atoms when given proR/proS flags
+        for residue, pairs in methyl_selection.items():
+            if residue in {'LEU', 'VAL'}:
+                if proR:
+                    methyl_selection[residue] = [p for p in pairs if not p[1].endswith('2')]
+                elif proS:
+                    methyl_selection[residue] = [p for p in pairs if not p[1].endswith('1')]
+        return {residue: atoms 
+                for residue, atoms in methyl_selection.items()
+                if residue in self.residues}
+
+class AdvancedSelector(Selector):
+    def __init__(self, residues: List[str], atoms: Tuple[str], *, plus_minus: List[int]) -> None:
+        super().__init__(residues, atoms)
+        self.plus_minus = plus_minus
+
     def get_selections(self, *, proR=False, proS=False) -> Dict[str, List[Tuple[str]]]:
         residue_selections = {}
         for residue in self.residues:
@@ -51,8 +121,8 @@ class Selector:
                                            for res_atom in constants.RESIDUE_ATOMS[residue] 
                                            if res_atom.startswith(atom)])
             residue_selections[residue] = list(itertools.product(*selected_atoms))
-        return residue_selections   
-
+        return residue_selections
+    
     def get_correlations(self, entity: BMRBEntity, *, label=None, **kwargs) -> List[NamedTuple]:
         # Group atoms by residue with each item is all assigned shifts for that residue
         selections = self.get_selections(**kwargs) # have to account for proR proS
@@ -77,8 +147,6 @@ class Selector:
                     # KeyError: residue filtered out
                     # TypeError: not all atoms in correlation have assigned shifts
                     continue
-            return records
-              
         else:
             # Inter-residue correlation
             for ires in residue_shifts:
@@ -123,39 +191,3 @@ class Selector:
                         # not all atoms have assigned shifts
                         continue
         return records
-                    
-
-class AmideSelector(Selector):
-    def __init__(self, residues: List[str]) -> None:
-        super().__init__(residues, ('H', 'N'), plus_minus=[0,0])
-    
-    def get_selections(self) -> Dict[str, List[Tuple[str]]]:
-        # Potentially add a flag to show side chain GLN/ASN
-        residue_selections = super().get_selections()
-        if 'TRP' in self.residues:
-            residue_selections['TRP'].append(('HE1', 'NE1'))
-        return residue_selections
-    
-    def get_correlations(self, entity: BMRBEntity, *, label, **kwargs) -> List[NamedTuple]:
-        return super().get_correlations(entity, label=label)
-
-class MethylSelector(Selector):
-    def __init__(self, residues: List[str]) -> None:
-        methyl_residues = [residue 
-                           for residue in residues
-                           if residue in constants.METHYL_ATOMS.keys()]
-        super().__init__(methyl_residues, ('HMETHYL', 'CMETHYL'), plus_minus=[0,0])
-    
-    def get_selections(self, *, proR=False, proS=False) -> Dict[str, List[Tuple[str]]]:
-        # Need to do proR, proS
-        methyl_selection = constants.METHYL_ATOMS
-        # Filter out prochiral atoms when given proR/proS flags
-        for residue, pairs in methyl_selection.items():
-            if residue in {'LEU', 'VAL'}:
-                if proR:
-                    methyl_selection[residue] = [p for p in pairs if not p[1].endswith('2')]
-                elif proS:
-                    methyl_selection[residue] = [p for p in pairs if not p[1].endswith('1')]
-        return {residue: atoms 
-                for residue, atoms in methyl_selection.items()
-                if residue in self.residues}
