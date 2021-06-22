@@ -47,3 +47,19 @@ METHYL_ATOMS: Dict[str, List[Tuple[str]]] = {'ILE':[('HD11','CD1')],
                 'ALA':[('HB1','CB')],
                 'THR':[('HG21','CG2')],
                 }
+
+METHYL_ATOMS_PROR: Dict[str, List[Tuple[str]]] = {'ILE':[('HD11','CD1')],
+                'LEU':[('HD11','CD1')],
+                'VAL':[('HG11','CG1')],
+                'MET':[('HE1','CE')],
+                'ALA':[('HB1','CB')],
+                'THR':[('HG21','CG2')],
+                }
+
+METHYL_ATOMS_PROS: Dict[str, List[Tuple[str]]] = {'ILE':[('HD11','CD1')],
+                'LEU':[('HD21','CD2')],
+                'VAL':[('HG21','CG2')],
+                'MET':[('HE1','CE')],
+                'ALA':[('HB1','CB')],
+                'THR':[('HG21','CG2')],
+                }

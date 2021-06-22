@@ -65,15 +65,12 @@ class MethylSelector(Selector):
         super().__init__(methyl_residues, ('HMETHYL', 'CMETHYL'))
     
     def get_selections(self, *, proR=False, proS=False) -> Dict[str, List[Tuple[str]]]:
-        # Need to do proR, proS
-        methyl_selection = constants.METHYL_ATOMS
-        # Filter out prochiral atoms when given proR/proS flags
-        for residue, pairs in methyl_selection.items():
-            if residue in {'LEU', 'VAL'}:
-                if proR:
-                    methyl_selection[residue] = [p for p in pairs if not p[1].endswith('2')]
-                elif proS:
-                    methyl_selection[residue] = [p for p in pairs if not p[1].endswith('1')]
+        if proR:
+            methyl_selection = constants.METHYL_ATOMS_PROR
+        elif proS:
+            methyl_selection = constants.METHYL_ATOMS_PROS
+        else:
+            methyl_selection = constants.METHYL_ATOMS
         return {residue: atoms 
                 for residue, atoms in methyl_selection.items()
                 if residue in self.residues}
@@ -90,36 +87,21 @@ class AdvancedSelector(Selector):
             for atom in self.atoms:
                 if atom in constants.SIMPLE_ATOMS:
                     selected_atoms.append([atom])
-                elif residue in constants.METHYL_ATOMS.keys() and atom == 'HMETHYL':
-                    pairs = constants.METHYL_ATOMS[residue]
-                    if residue in {'LEU', 'VAL'}:
-                        if proR:
-                            selected_atoms.append([p[0] for p in pairs if not p[1].endswith('2')])
-                        elif proS:
-                            selected_atoms.append([p[0] for p in pairs if not p[1].endswith('1')])
-                        else:
-                            # Not proR or proS filtered
-                            selected_atoms.append([p[0] for p in pairs])
+                elif residue in constants.METHYL_ATOMS.keys() and (atom == 'HMETHYL' or atom == 'CMETHYL'):
+                    if proR:
+                        methyl_selection = constants.METHYL_ATOMS_PROR
+                    elif proS:
+                        methyl_selection = constants.METHYL_ATOMS_PROS
                     else:
-                        # Not Leu or Val
-                        selected_atoms.append([p[0] for p in pairs])
-                elif residue in constants.METHYL_ATOMS.keys() and atom == 'CMETHYL':
-                    pairs = constants.METHYL_ATOMS[residue]
-                    if residue in {'LEU', 'VAL'}:
-                        if proR:
-                            selected_atoms.append([p[1] for p in pairs if not p[1].endswith('2')])
-                        elif proS:
-                            selected_atoms.append([p[1] for p in pairs if not p[1].endswith('1')])
-                        else:
-                            # Not proR or proS filtered
-                            selected_atoms.append([p[1] for p in pairs])
-                    else:
-                        # Not Leu or Val
-                        selected_atoms.append([p[1] for p in pairs])
+                        methyl_selection = constants.METHYL_ATOMS
+                    # first atom is always proton, second is carbon in METHYL_ATOMS dicts
+                    index = 0 if atom == 'HMETHYL' else 1
+                    selected_atoms.append([methyl_atoms[index] 
+                                          for methyl_atoms in methyl_selection[residue]])
                 else:
-                    selected_atoms.append([res_atom 
-                                           for res_atom in constants.RESIDUE_ATOMS[residue] 
-                                           if res_atom.startswith(atom)])
+                    selected_atoms.append([residue_atom 
+                                           for residue_atom in constants.RESIDUE_ATOMS[residue] 
+                                           if residue_atom.startswith(atom)])
             residue_selections[residue] = list(itertools.product(*selected_atoms))
         return residue_selections
     
