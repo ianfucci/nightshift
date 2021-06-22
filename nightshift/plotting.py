@@ -1,9 +1,6 @@
-from typing import Dict, List, NamedTuple, Tuple
-from operator import itemgetter
+from typing import Dict, List, Tuple
 
-import numpy as np
-import matplotlib.pyplot as plt
-
+from matplotlib.axes import Axes
 
 # Palette of colors for each residue
 RESIDUE_COLORS: Dict[str,str] = {
@@ -16,88 +13,83 @@ RESIDUE_COLORS: Dict[str,str] = {
 
 AXIS_LABELS: Dict[str,str] = {'H': r'$^1$H (ppm)', 'N': r'$^{15}$N (ppm)', 'C': r'$^{13}$C (ppm)'}
 
-def plot2D(records: List[NamedTuple], *, nolabels: bool, showlegend: bool, offset: int, segment: Tuple[int]) -> None:
-    # should really take care of segment and offset elsewhere... selector probably
+def plot2D(ax: Axes, correlations: List, atoms: Tuple[str], 
+          *, nolabels: bool, showlegend: bool, offset: int = 0) -> Tuple[List,List]:
     legend = {}
-    fig, ax = plt.subplots()
-    for record in records:
-        index = int(record.label[3:])
-        if segment[0] <= index <= segment[1]:
-            residue_type = record.label[:3]
-            color = RESIDUE_COLORS[residue_type]
-
-            handle = ax.scatter(record[1], record[2], c=color)
-            legend[residue_type] = handle
-
-            if not nolabels:
-                ax.annotate(f'{residue_type}{index + offset}', record[1:])
+    handles = []
+    text = []
+    for sequence_number, residue_type, chemical_shifts in correlations:
+        color = RESIDUE_COLORS[residue_type]
+        handle = ax.plot(*chemical_shifts, 'o', c=color)[0]
+        handles.append(handle)
+        legend[residue_type] = handle
+        if not nolabels:
+            text.append(ax.annotate(f'{residue_type}{sequence_number + offset}', chemical_shifts))
         
     # Show the legend when no labels are shown, or showlegend argument is passed
     if nolabels or showlegend:
         # Residues are added as they are encountered, not in sorted order
-        sort_legend = {color: residue for color, residue in sorted(legend.items())}
-        plt.legend(sort_legend.values(), sort_legend.keys())
+        sort_legend = {color: residue for residue, color in sorted(legend.items())}
+        ax.legend(sort_legend.keys(), sort_legend.values())
 
-    # Invert axes
-    ax.invert_xaxis()
-    ax.invert_yaxis()
+    if not ax.xaxis_inverted():
+        ax.invert_xaxis()
+    if not ax.yaxis_inverted():
+        ax.invert_yaxis()
 
     # Label axes
-    atoms = record._fields[1:]
     ax.set_xlabel(AXIS_LABELS[atoms[0][0]])
     ax.set_ylabel(AXIS_LABELS[atoms[1][0]])
+    
+    return handles, text
 
-def plot3D(records: List[NamedTuple], *, nolabels: bool = False, showlegend: bool = False, offset: int, segment: Tuple[int], project: int, slices: int) -> None:
+def plot3D(ax: Axes, correlations: List, atoms: Tuple[str], *, nolabels: bool = False,
+          showlegend: bool = False, offset: int = 0, project: int, slices: int) -> None:
     
     # Get mins and maxes so all plots have the same xy coords
-    maxes = [max(dim) for dim in list(zip(*records))[1:]]
-    mins = [min(dim) for dim in list(zip(*records))[1:]]
+    # correlations formated [sequence_number, residue_type, (chemical_shifts)]
+    shifts = list(zip(*(c[2] for c in correlations)))
+    maxes = [max(dim) for dim in shifts]
+    mins = [min(dim) for dim in shifts]
 
     # Find intervals for bins
-    projection_max = maxes.pop(project-1)
-    projection_min = mins.pop(project-1)
+    projection_max = maxes.pop(project)
+    projection_min = mins.pop(project)
     bin_width = (projection_max - projection_min) / slices
     cutoffs = [projection_min + i * bin_width for i in range(slices)]
     # Add 1 to not have to deal with < vs <= for last bin
     intervals = list(zip(cutoffs, cutoffs[1:] + [projection_max + 1]))
 
-    fig, ax = plt.subplots()
-    # Set axes equal for all plots
+    # Sets axes equal for all plots
     x_padding = 0.1 * (maxes[0] - mins[0])
     y_padding = 0.1 * (maxes[1] - mins[1])
     ax.set_xlim((mins[0]-x_padding, maxes[0]+x_padding))
     ax.set_ylim((mins[1]-y_padding, maxes[1]+y_padding))
 
-    # Invert axes
-    ax.invert_xaxis()
-    ax.invert_yaxis()
-
     sliced_data = []
     for low, high in intervals:
         sliced = []
-        for point in sorted(records, key=itemgetter(project)):
-            residue_type = point[0][:3]
-            index = int(point[0][3:])
-            if low <= point[project] < high:
+        # chemical shifts are index 2
+        for sequence_number, residue_type, chemical_shifts in sorted(correlations, key=lambda x: x[2][project]):
+            if low <= chemical_shifts[project] < high:
                 # Remove projected index from list of indices used for plotting
-                plot_point = list(point[:])
+                plot_point = list(chemical_shifts[:])
                 plot_point.pop(project)
-                sliced.append([f'{residue_type}{index+offset}'] + plot_point[1:])
+                sliced.append([sequence_number, residue_type, plot_point])
         sliced_data.append(sliced)
     
-    atoms = list(point._fields[1:])
-    atoms.pop(project-1)
-    ax.set_xlabel(AXIS_LABELS[atoms[0][0]])
-    ax.set_ylabel(AXIS_LABELS[atoms[1][0]])
+    atoms.pop(project)
+    # ax.set_xlabel(AXIS_LABELS[atoms[0][0]])
+    # ax.set_ylabel(AXIS_LABELS[atoms[1][0]])
 
-    tracker = Slices3D(ax, sliced_data, intervals)
-    fig.canvas.mpl_connect('scroll_event', tracker.on_scroll)
+    tracker = Slices3D(ax, sliced_data, intervals, atoms=atoms, nolabels=nolabels, showlegend=showlegend, offset=offset)
+    ax.get_figure().canvas.mpl_connect('scroll_event', tracker.on_scroll)
     return tracker
 
 
 class Slices3D:
     # Modified from: https://matplotlib.org/stable/gallery/event_handling/image_slices_viewer.html
-    def __init__(self, ax, data, intervals):
+    def __init__(self, ax, data, intervals, **kwargs):
         self.ax = ax
         self.data = data
         self.intervals = intervals
@@ -105,21 +97,9 @@ class Slices3D:
         self.ind = self.slices//2 # start in the center
         self.text = []
         self.handles = []
-        try:
-            for name, x, y in self.data[self.ind]:
-                color = RESIDUE_COLORS[name[:3]]
-                self.handles.append(self.ax.plot(x, y, 'o', c=color)[0])
-                self.text.append(self.ax.annotate(name, (x,y)))
-        except ValueError:
-            # bin is empty, skip
-            pass
-        # Add ppm of center projected dimension
-        xmin, xmax = self.ax.get_xlim()
-        ymin, ymax = self.ax.get_ylim()
-        x_padding = 0.1 * (xmax - xmin)
-        y_padding = 0.1 * (ymax - ymin)
-        self.text.append(self.ax.text(xmin+0.1*x_padding, ymax-0.5*y_padding, f'{(sum(self.intervals[self.ind]))/2:.1f} ppm'))
-        # self.update()
+        self.kwargs = kwargs
+        # self.handles, self.text = plot2D(self.ax, self.data[self.ind], **self.kwargs)
+        self.update()
 
     def on_scroll(self, event):
         if event.button == 'up':
@@ -133,30 +113,20 @@ class Slices3D:
                 self.update()
 
     def update(self):
-        # Clear annotations
-        try:
-            for t in self.text:
-                t.remove()
-            self.text = []
-            for h in self.handles:
-                h.set_data(None,None)
-            self.handles = []
-            for name, x, y in self.data[self.ind]:
-                color = RESIDUE_COLORS[name[:3]]
-                self.handles.append(self.ax.plot(x, y, 'o', c=color)[0])
-                self.text.append(self.ax.annotate(name, (x,y)))
-        except ValueError:
-            # bin is empty, clear plot
-            for h in self.handles:
-                h.set_data(None, None)
-            for t in self.text:
-                t.remove()
-            self.text = []
-
+        self.clear_annotations()
+        self.handles, self.text = plot2D(self.ax, self.data[self.ind], **self.kwargs)
         # Add ppm of center projected dimension
-        xmin, xmax = self.ax.get_xlim()
-        ymin, ymax = self.ax.get_ylim()
-        x_padding = 0.1 * (xmax - xmin)
-        y_padding = 0.1 * (ymax - ymin)
-        self.text.append(self.ax.text(xmin+0.1*x_padding, ymax-0.5*y_padding, f'{(sum(self.intervals[self.ind]))/2:.1f} ppm'))
+        self.text.append(self.ax.annotate(
+                        f'{(sum(self.intervals[self.ind]))/2:.1f} ppm',
+                        xy=(0.02,0.94), xycoords='axes fraction',
+                        horizontalalignment='left'
+                        ))
         self.ax.figure.canvas.draw()
+
+    def clear_annotations(self):
+        for text in self.text:
+            text.remove()
+            self.text = []
+        for handle in self.handles:
+            handle.set_data(None,None)
+            self.handles = []

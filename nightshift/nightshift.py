@@ -91,14 +91,14 @@ def get(args):
 
     # Generate selector objects
     if args.amide:
-        selector = AmideSelector(residues)
-        records = selector.get_correlations(entry_data, sidechains=args.sidechains)
+        selector = AmideSelector(residues, args.segment, sidechains=args.sidechains)
+        correlations = selector.get_correlations(entry_data)
     elif args.methyl:
-        selector = MethylSelector(residues)
-        records = selector.get_correlations(entry_data, proR=args.proR, proS=args.proS)
+        selector = MethylSelector(residues, args.segment, proR=args.proR, proS=args.proS)
+        correlations = selector.get_correlations(entry_data)
     elif all(atom in constants.SIMPLE_ATOMS for atom in args.custom):
-        selector = Selector(residues, args.custom)
-        records = selector.get_correlations(entry_data)
+        selector = Selector(residues, args.custom, args.segment)
+        correlations = selector.get_correlations(entry_data)
     else:
         # Advanced correlation setup
         args.custom = [a.upper() for a in args.custom]
@@ -123,51 +123,31 @@ def get(args):
             else:
                 plus_minus = [pm - abs_min for pm in plus_minus]
             logging.warn(f"No 'i-residue' found. Adjusted by indicies by {abs_min}.")
-        selector = AdvancedSelector(residues, tuple(atoms), plus_minus=plus_minus)
+        selector = AdvancedSelector(residues, tuple(atoms), args.segment, plus_minus=plus_minus, proR=args.proR, proS=args.proS)
     
         if args.label is not None:
             args.label -= 1
-        records = selector.get_correlations(entry_data, label=args.label, proR=args.proR, proS=args.proS)
+        correlations = selector.get_correlations(entry_data, label=args.label)
     
-    seq_nums = [int(record.label[3:]) for record in records]
-    seq_min = min(seq_nums)
-    seq_max = max(seq_nums)
-    start, stop = seq_min, seq_max
-    if args.segment is not None:
-        start, stop = args.segment
-        if start < seq_min:
-            logging.warn(f'Start from segment parameter: {start} too low, defaulting to sequence start: residue {seq_min}')
-            start = seq_min 
-        if stop > seq_max:
-            logging.warn(f'Stop from segment parameter: {stop} too high, defaulting to sequence end: residue {seq_max}')
-            stop = seq_max
-        if start > seq_max:
-            logging.warn(f'Start from segment parameter: {stop} too high, ignoring')
-            start = seq_min
-
     if args.csv is not None:
         with open(args.csv, 'w', newline='') as csvfile:
-            fieldnames = records[0]._fields
+            fieldnames = ['label'] + list(selector.atoms)
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames, quotechar="'", quoting=csv.QUOTE_NONNUMERIC)
             writer.writeheader()
-            for record in records:
-                index = int(record.label[3:])
-                residue_type = record.label[:3]
-                if start <= index <= stop:
-                    row = record._asdict()
-                    row['label'] = f'{residue_type}{index + args.offset}'
-                    writer.writerow(row)
+            for sequence_number, residue_type, chemical_shifts in correlations:
+                row = {atom : chemical_shifts[i] for atom in enumerate(selector.atoms)}
+                row['label'] = f'{residue_type}{sequence_number + args.offset}'
+                writer.writerow(row)
 
+    fig, ax = plt.subplots()
     # Plot correlations
     if len(selector.atoms) == 2:
-        plotting.plot2D(records, nolabels=args.nolabels, showlegend=args.showlegend, offset=args.offset,
-        segment=(start, stop))
+        plotting.plot2D(ax, correlations, selector.atoms, nolabels=args.nolabels, showlegend=args.showlegend, offset=args.offset)
+
     elif len(selector.atoms) == 3:
         # Have to return tracker, otherwise gets GC'd and scrolling doesn't work.
-        tracker = plotting.plot3D(records, nolabels=args.nolabels, showlegend=args.showlegend, offset=args.offset,
-        segment=(start, stop), project=args.project, slices=args.slices)
-    
-    # Not having an else leaves room for nD?
+        tracker = plotting.plot3D(ax, correlations, selector.atoms, nolabels=args.nolabels, showlegend=args.showlegend, offset=args.offset,
+        project=args.project-1, slices=args.slices)
 
     # Interactive matplotlib window opened if not saving
     if not args.output:
