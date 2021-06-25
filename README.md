@@ -1,5 +1,5 @@
-# plot_bmrb
-Scripts to plot 2D chemical shift locations from BMRB assignments
+# nightshift
+A python library and command line program for plotting simulated 2D and 3D NMR spectra from assigned chemical shifts from the [BMRB](https://bmrb.io)
 
 Peak assignments are pulled using the BMRB API (https://github.com/uwbmrb/BMRB-API) and plotted with matplotlib. Spectra produced by this script do not always reflect reality, as many entries do not have 100% assignments. Be sure to know what assignments are contained in the entry beforehand.
 
