@@ -6,10 +6,12 @@ Peak assignments are pulled using the BMRB API (https://github.com/uwbmrb/BMRB-A
 ## Installation
 I recommend installing in a [virtualenv](https://docs.python.org/3/tutorial/venv.html) to avoid any conflicts with your python installation.
 nightshift is available on the [PyPI](https://pypi.org/project/nightshift/) and can be installed with `pip`:
+
 `pip install nightshift`
 
 ## Usage
 You will need to know your protein of interest's BMRB entry number. You can use nightshift's search command to find entry numbers:
+
 `nightshift search ubiquitin`
 
 We'll use `4493` [Solution structure of the designed hydrophobic core mutant of ubiquitin, 1D7](http://www.bmrb.wisc.edu/data_library/summary/index.php?bmrbId=4493) for our examples.
@@ -23,6 +25,7 @@ To simulate 1H-15N HSQC spetra can be plotted using the `--amide` flag:
 `nightshift get 4493 --amide`
 
 To show Asn and Gln side chain amides on the spectrum pass the optional `--sidechains` flag:
+
 `nightshift get 4493 --amide --sidechains`
 
 A simulated 1H-13C HMQC spetra can be plotted using the `--methyl` flag, additionally
