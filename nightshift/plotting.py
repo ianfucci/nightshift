@@ -44,7 +44,7 @@ def plot2D(ax: Axes, correlations: List, atoms: Tuple[str],
     return handles, text
 
 def plot3D(ax: Axes, correlations: List, atoms: Tuple[str], *, nolabels: bool = False,
-          showlegend: bool = False, offset: int = 0, project: int, slices: int) -> None:
+          showlegend: bool = False, offset: int = 0, project: int = 2, slices: int = 16) -> None:
     
     # Get mins and maxes so all plots have the same xy coords
     # correlations formated [sequence_number, residue_type, (chemical_shifts)]

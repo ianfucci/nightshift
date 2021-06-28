@@ -2,42 +2,68 @@ from collections import namedtuple
 import itertools
 import logging
 from operator import attrgetter
+import re
 from typing import Dict, List, NamedTuple, Tuple
 
 from nightshift import constants
 from nightshift.bmrb import BMRBEntity
 
+Selections =  Dict[str, List[Tuple[str]]]
+Correlations = List[Tuple[int,str,Tuple[float]]]
+ResidueShifts = Dict[int, List[NamedTuple]]
+
 class Selector:
     '''Defines selector for any correlations in constants.SIMPLE_ATOMS'''
-    def __init__(self, residues: List[str], atoms: Tuple[str], segment: Tuple[int] = None) -> None:
-        self.residues = residues
+    def __init__(self, 
+                residues: List[str] = None,
+                atoms: Tuple[str] = None,
+                segment: Tuple[int] = None) \
+                -> None:
+
+        self.residues = self._filter_residues(residues)
         self.atoms = atoms
         self.segment = segment
     
     @property
-    def selections(self) -> Dict[str, List[Tuple[str]]]:
+    def selections(self) -> Selections:
         return {residue: [self.atoms] for residue in self.residues}
 
-    def get_correlations(self, entity: BMRBEntity) -> List:
-        residue_shifts = self._get_segment(entity)
+    def get_correlations(self, entity: BMRBEntity) -> Correlations:
+        residue_shifts = self._get_residue_shifts(entity)
         shift_table = []
         for seq_num, residue in residue_shifts.items():
-            try:
-                residue_type = residue[0].Comp_ID
-                for correlation in self.selections[residue_type]:
-                    # correlation has to be  first in the list comp to preserve order
-                    selected_atoms = tuple(float(atom.Val)
-                                           for spin in correlation
-                                           for atom in residue 
-                                           if atom.Atom_ID == spin)
+            residue_type = residue[0].Comp_ID
+            selections = self.selections.get(residue_type)
+            if selections is not None:
+                for correlation in selections:
+                    selected_atoms = []
+                    # correlation has to be outer loop to preserve order
+                    for spin in correlation:
+                        for atom in residue:
+                            if atom.Atom_ID == spin:
+                                selected_atoms.append(float(atom.Val))
                     if len(selected_atoms) == len(self.atoms):
-                        shift_table.append([seq_num, residue_type, selected_atoms])
-            except KeyError:
-                # residue filtered out
-                continue
-        return shift_table    
+                        shift_table.append((seq_num, residue_type, tuple(selected_atoms)))
+        return shift_table
+    
+    @staticmethod
+    def _filter_residues(residues: List[str]) -> List[str]:
+        # Check residue filter
+        if residues is not None:
+            # Warn for incorrect 1-letter codes
+            bad_codes = set(residues.upper()) - constants.ONE_LETTER_TO_THREE_LETTER.keys()
+            if bad_codes:
+                bad_code_string = ','.join(bad_codes)
+                logging.warn(f'{bad_code_string} not valid 1-letter code(s)')
+            # Remove bad codes and ignore
+            residues = [constants.ONE_LETTER_TO_THREE_LETTER.get(residue.upper()) 
+                        for residue in residues if residue not in bad_codes]
+        else:
+            # If no residue filter is specified use all residues
+            residues = list(constants.ONE_LETTER_TO_THREE_LETTER.values())
+        return residues
 
-    def _get_segment(self, entity: BMRBEntity) -> Dict[int, List[NamedTuple]]:
+    def _get_residue_shifts(self, entity: BMRBEntity) -> ResidueShifts:
         # Group atoms by residue, each item is all assigned shifts for that residue
         residue_shifts = {int(seq_num) : list(group)
                          for seq_num, group 
@@ -65,13 +91,18 @@ class Selector:
                }
 
 class AmideSelector(Selector):
-    def __init__(self, residues: List[str], segment: Tuple[int] = None,
-                *, sidechains: bool = False) -> None:
+    def __init__(self,
+                residues: List[str] = None, 
+                segment: Tuple[int] = None,
+                *,
+                sidechains: bool = False) \
+                -> None:
+
         super().__init__(residues, ('H', 'N'), segment)
         self.sidechains = sidechains
 
     @property
-    def selections(self) -> Dict[str, List[Tuple[str]]]:
+    def selections(self) -> Selections:
         residue_selections = super().selections
         if 'TRP' in self.residues:
             residue_selections['TRP'].append(('HE1', 'NE1'))
@@ -85,17 +116,30 @@ class AmideSelector(Selector):
         return residue_selections
 
 class MethylSelector(Selector):
-    def __init__(self, residues: List[str], segment: Tuple[int] = None,
-                *, proR: bool = False, proS: bool = False) -> None:
-        methyl_residues = [residue 
-                           for residue in residues
-                           if residue in constants.METHYL_ATOMS.keys()]
-        super().__init__(methyl_residues, ('HMETHYL', 'CMETHYL'), segment)
+    def __init__(self,
+                residues: List[str] = None,
+                segment: Tuple[int] = None,
+                *,
+                proR: bool = False,
+                proS: bool = False) \
+                -> None:
+
+        # Warn if non MILVAT residues are used with the --methyl flag
+        super().__init__(residues, ('HMETHYL', 'CMETHYL'), segment)
+        if residues is not None:
+            non_milvat = set(self.residues) - constants.METHYL_ATOMS.keys()
+            if non_milvat:
+                res_string = ','.join(sorted(non_milvat, key=self.residues.index))
+                logging.warn(f'residues other than MILVAT: ({res_string}) are ignored')
+
+        self.residues = [residue 
+                        for residue in constants.METHYL_ATOMS.keys()
+                        if residue in self.residues]
         self.proR = proR
         self.proS = proS
     
     @property
-    def selections(self) -> Dict[str, List[Tuple[str]]]:
+    def selections(self) -> Selections:
         if self.proR:
             methyl_selection = constants.METHYL_ATOMS_PROR
         elif self.proS:
@@ -108,22 +152,30 @@ class MethylSelector(Selector):
                }
 
 class AdvancedSelector(Selector):
-    def __init__(self, residues: List[str], atoms: Tuple[str], segment: Tuple[int] = None,
-                *, plus_minus: List[int], proR: bool = False, proS: bool = False) -> None:
-        super().__init__(residues, atoms, segment)
-        self.plus_minus = plus_minus
+    def __init__(self,
+                residues: List[str], 
+                atoms: Tuple[str],
+                segment: Tuple[int] = None,
+                *,
+                proR: bool = False,
+                proS: bool = False) \
+                -> None:
+
+        self.plus_minus, split_atoms = self._get_plus_minus_atoms(atoms)
+        super().__init__(residues, split_atoms, segment)
         self.proR = proR
         self.proS = proS
 
     @property
-    def selections(self) -> Dict[str, List[Tuple[str]]]:
+    def selections(self) -> Selections:
         residue_selections = {}
         for residue in self.residues:
             selected_atoms = []
             for atom in self.atoms:
                 if atom in constants.SIMPLE_ATOMS:
                     selected_atoms.append([atom])
-                elif residue in constants.METHYL_ATOMS.keys() and (atom == 'HMETHYL' or atom == 'CMETHYL'):
+                elif residue in constants.METHYL_ATOMS.keys() and \
+                     (atom == 'HMETHYL' or atom == 'CMETHYL'):
                     if self.proR:
                         methyl_selection = constants.METHYL_ATOMS_PROR
                     elif self.proS:
@@ -133,38 +185,39 @@ class AdvancedSelector(Selector):
                     # first atom is always proton, second is carbon in METHYL_ATOMS dicts
                     index = 0 if atom == 'HMETHYL' else 1
                     selected_atoms.append([methyl_atoms[index] 
-                                          for methyl_atoms in methyl_selection[residue]])
+                                          for methyl_atoms
+                                          in methyl_selection[residue]])
                 else:
                     selected_atoms.append([residue_atom 
-                                           for residue_atom in constants.RESIDUE_ATOMS[residue] 
+                                           for residue_atom
+                                           in constants.RESIDUE_ATOMS[residue] 
                                            if residue_atom.startswith(atom)])
             residue_selections[residue] = list(itertools.product(*selected_atoms))
         return residue_selections
     
-    def get_correlations(self, entity: BMRBEntity, *, label=None) -> List[NamedTuple]:
+    def get_correlations(self, entity: BMRBEntity, *, label=None) -> Correlations:
         # Intra-residue correlation same as the simple case
         if self.plus_minus == [0]*len(self.atoms):
             return super().get_correlations(entity)
-        
+
         # Inter-residue correlation
         else:
             # Group atoms by residue, each item is all assigned shifts for that residue
-            residue_shifts = self._get_segment(entity)
+            residue_shifts = self._get_residue_shifts(entity)
             shift_table = []
+            
             # Filter out residues if sequence numbers for i+- cannot be found
             for ires in residue_shifts:
                 window = tuple(ires + index for index in self.plus_minus)
-                residues = []
-                for res_num in window:
-                    try:
-                        residues.append(residue_shifts[res_num])
-                    except KeyError:
-                        continue
+                residues = [residue_shifts[res_num] 
+                           for res_num in window
+                           if residue_shifts.get(res_num) is not None]
                 
                 # Get residue number, type and chemical shifts for each atom in group
                 group = []
                 for i, residue in enumerate(residues):
-                    try:
+                    selections = self.selections.get(residue[0].Comp_ID)
+                    if selections is not None:
                         # Have to filter it to prevent duplications in branched amino acid residues
                         correlations = [s[i] for s in self.selections[residue[0].Comp_ID]]
                         unique_correlations = sorted(set(correlations), key=correlations.index)
@@ -175,14 +228,11 @@ class AdvancedSelector(Selector):
                                 if atom.Atom_ID == correlation:
                                     selected_atoms.append((int(atom.Seq_ID), atom.Comp_ID, float(atom.Val)))
                         group.append(selected_atoms)
-                    except KeyError:
-                        # residue filtered out
-                        continue
 
                 # Reformat data and filter by those which have all atoms assigned
                 for group_data in itertools.product(*group):
-                    group_sequence_numbers, group_residue_types, group_shifts = zip(*group_data)
                     try:
+                        group_sequence_numbers, group_residue_types, group_shifts = zip(*group_data)
                         if label is not None:
                             sequence_number = group_sequence_numbers[label]
                             residue_type = group_residue_types[label]
@@ -192,7 +242,35 @@ class AdvancedSelector(Selector):
                             residue_type = group_residue_types[ires_index]
                         if len(group_shifts) == len(self.atoms):
                             shift_table.append([sequence_number, residue_type, group_shifts])
-                    except IndexError:
-                        # not all atoms have assigned shifts
+                    except (IndexError, ValueError):
+                        # not all atoms have assigned shifts or residue(s) filtered out
                         continue
-        return shift_table
+            return shift_table
+    
+    @staticmethod
+    def _get_plus_minus_atoms(atoms: str):
+        # Advanced correlation setup
+        atoms = [a.upper() for a in atoms]
+        plus_minus = [0]*len(atoms)
+        split_atoms = []
+        for i, spin in enumerate(atoms):
+            try:
+                # Split at plus or minus sign
+                atom, sign, index = re.split(r'(\+|\-)', spin)
+                split_atoms.append(atom)
+                plus_minus[i] = int(sign+index)
+            except ValueError:
+                # No plus or minus for atom
+                split_atoms.append(spin)
+                continue
+        # Ensure there is an i residue, not all have +/- indices
+        if 0 not in plus_minus:
+            abs_min = min([abs(pm) for pm in plus_minus])
+            add_min = [pm + abs_min for pm in plus_minus]
+            if 0 in add_min:
+                plus_minus = add_min
+                logging.warn(f"No 'i-residue' found. Adjusted all indicies by +{abs_min}.")
+            else:
+                plus_minus = [pm - abs_min for pm in plus_minus]
+                logging.warn(f"No 'i-residue' found. Adjusted all indicies by -{abs_min}.")
+        return tuple(plus_minus), tuple(split_atoms)

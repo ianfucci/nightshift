@@ -1,8 +1,7 @@
 import argparse
 from collections import namedtuple
 import csv
-import logging
-import re
+from typing import List, Tuple
 import sys
 
 import matplotlib.pyplot as plt
@@ -11,6 +10,8 @@ from nightshift import bmrb
 from nightshift import constants
 from nightshift import plotting
 from nightshift.selector import Selector, AmideSelector, MethylSelector, AdvancedSelector
+
+Correlations = List[Tuple[int,str,Tuple[float]]]
 
 def run_cli() -> None:
     parser = argparse.ArgumentParser(description='Tools for plotting simulated NMR spectra from assigned chemical shifts in the BMRB.')
@@ -66,24 +67,6 @@ def run_cli() -> None:
     args.func(args)
 
 def get(args):
-    # Check residue filter
-    if args.residues:
-        # Warn for incorrect 1-letter codes
-        bad_codes = set(args.residues.upper()) - constants.ONE_LETTER_TO_THREE_LETTER.keys()
-        if bad_codes:
-            bad_code_string = ','.join(bad_codes)
-            logging.warn(f'{bad_code_string} not valid 1-letter code(s)')
-        # Remove bad codes and ignore
-        residues = [constants.ONE_LETTER_TO_THREE_LETTER.get(r.upper()) for r in args.residues if r not in bad_codes]
-        # Warn if non MILVAT residues are used with the --methyl flag
-        non_milvat = set(residues) - constants.METHYL_ATOMS.keys()
-        if args.methyl and non_milvat:
-            res_string = ','.join(non_milvat)
-            logging.warn(f'residues other than MILVAT: ({res_string}) are ignored when plotting.')
-    else:
-        # If no residue filter is specified use all residues
-        residues = list(constants.ONE_LETTER_TO_THREE_LETTER.values())
-
     # Get data from BMRB
     entry_data = bmrb.get_bmrb_shifts(args.entry)
     if entry_data is None:
@@ -91,55 +74,25 @@ def get(args):
 
     # Generate selector objects
     if args.amide:
-        selector = AmideSelector(residues, args.segment, sidechains=args.sidechains)
+        selector = AmideSelector(args.residues, args.segment, sidechains=args.sidechains)
         correlations = selector.get_correlations(entry_data)
     elif args.methyl:
-        selector = MethylSelector(residues, args.segment, proR=args.proR, proS=args.proS)
+        selector = MethylSelector(args.residues, args.segment, proR=args.proR, proS=args.proS)
         correlations = selector.get_correlations(entry_data)
     elif all(atom in constants.SIMPLE_ATOMS for atom in args.custom):
-        selector = Selector(residues, args.custom, args.segment)
+        selector = Selector(args.residues, args.custom, args.segment)
         correlations = selector.get_correlations(entry_data)
     else:
-        # Advanced correlation setup
-        args.custom = [a.upper() for a in args.custom]
-        plus_minus = [0]*len(args.custom)
-        atoms = []
-        for i, spin in enumerate(args.custom):
-            try:
-                # Split at plus or minus sign
-                atom, sign, index = re.split(r'(\+|\-)', spin)
-                atoms.append(atom)
-                plus_minus[i] = int(sign+index)
-            except ValueError:
-                # No plus or minus for atom
-                atoms.append(spin)
-                continue
-        # Ensure there is an i residue, not all have +/- indices
-        if 0 not in plus_minus:
-            abs_min = min([abs(pm) for pm in plus_minus])
-            add_min = [pm + abs_min for pm in plus_minus]
-            if 0 in add_min:
-                plus_minus = add_min
-            else:
-                plus_minus = [pm - abs_min for pm in plus_minus]
-            logging.warn(f"No 'i-residue' found. Adjusted by indicies by {abs_min}.")
-        selector = AdvancedSelector(residues, tuple(atoms), args.segment, plus_minus=plus_minus, proR=args.proR, proS=args.proS)
+        selector = AdvancedSelector(args.residues, args.custom, args.segment, proR=args.proR, proS=args.proS)
     
         if args.label is not None:
             args.label -= 1
         correlations = selector.get_correlations(entry_data, label=args.label)
     
     if args.csv is not None:
-        with open(args.csv, 'w', newline='') as csvfile:
-            fieldnames = ['label'] + list(selector.atoms)
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames, quotechar="'", quoting=csv.QUOTE_NONNUMERIC)
-            writer.writeheader()
-            for sequence_number, residue_type, chemical_shifts in correlations:
-                row = {atom : chemical_shifts[i] for atom in enumerate(selector.atoms)}
-                row['label'] = f'{residue_type}{sequence_number + args.offset}'
-                writer.writerow(row)
+        write_csv(args.csv, correlations, selector.atoms, args.offset)
 
-    fig, ax = plt.subplots()
+    _, ax = plt.subplots()
     # Plot correlations
     if len(selector.atoms) == 2:
         plotting.plot2D(ax, correlations, selector.atoms, nolabels=args.nolabels, showlegend=args.showlegend, offset=args.offset)
@@ -156,23 +109,22 @@ def get(args):
         plt.savefig(args.output, dpi=300)
     plt.close()
 
-
 def from_file(args):
-    records = []
+    correlations = []
     for in_file in args.input:
         with open(in_file, 'r', newline='') as csvfile:
-            reader = csv.DictReader(csvfile, quotechar="'", quoting=csv.QUOTE_NONNUMERIC)
-            NightshiftRecord = namedtuple('NightshiftRecord', reader.fieldnames)
+            reader = csv.reader(csvfile, quoting=csv.QUOTE_NONNUMERIC)
+            atoms = tuple(next(reader))[1:] # get headings
             for row in reader:
-                records.append(NightshiftRecord(*row.values()))
-    if all(len(record) == 3 for record in records):
-        # 2 + 1 for label
-        plotting.plot2D(records, nolabels=args.nolabels, showlegend=args.showlegend, segment=(310,319), offset=0)
-    elif all(len(record) == 4 for record in records):
-        # 3 + 1 for label
-        pass
-    else:
-        pass
+                # sequence_number, residue_type, (shift1, shift2,...)
+                correlations.append([int(row[0][3:]), row[0][:3], tuple(row[1:])])
+
+    _, ax = plt.subplots()
+    if all(len(correlation[-1]) == 2 for correlation in correlations):
+        plotting.plot2D(ax, correlations, atoms, nolabels=args.nolabels, showlegend=args.showlegend)
+    elif all(len(correlation[-1]) == 3 for correlation in correlations):
+        tracker = plotting.plot3D(ax, correlations, atoms, nolabels=args.nolabels, showlegend=args.showlegend)
+
 
     # Interactive matplotlib window opened if not saving
     if not args.output:
@@ -190,3 +142,13 @@ def search(args: argparse.Namespace) -> None:
 
 def website(args: argparse.Namespace) -> None:
     bmrb.open_bmrb_page(args.entry)
+
+def write_csv(filename: str, correlations: Correlations, atoms: Tuple[str], offset: int):
+    with open(filename, 'w', newline='') as csvfile:
+        fieldnames = ['label'] + list(atoms)
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, quoting=csv.QUOTE_NONNUMERIC)
+        writer.writeheader()
+        for sequence_number, residue_type, chemical_shifts in correlations:
+            row = {atom : chemical_shifts[i] for i, atom in enumerate(atoms)}
+            row['label'] = f'{residue_type}{sequence_number + offset}'
+            writer.writerow(row)
