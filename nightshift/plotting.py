@@ -78,9 +78,7 @@ def plot3D(ax: Axes, correlations: List, atoms: Tuple[str], *, nolabels: bool = 
                 sliced.append([sequence_number, residue_type, plot_point])
         sliced_data.append(sliced)
     
-    atoms.pop(project)
-    # ax.set_xlabel(AXIS_LABELS[atoms[0][0]])
-    # ax.set_ylabel(AXIS_LABELS[atoms[1][0]])
+    atoms = atoms[:project] + atoms[project+1:]
 
     tracker = Slices3D(ax, sliced_data, intervals, atoms=atoms, nolabels=nolabels, showlegend=showlegend, offset=offset)
     ax.get_figure().canvas.mpl_connect('scroll_event', tracker.on_scroll)
@@ -98,7 +96,6 @@ class Slices3D:
         self.text = []
         self.handles = []
         self.kwargs = kwargs
-        # self.handles, self.text = plot2D(self.ax, self.data[self.ind], **self.kwargs)
         self.update()
 
     def on_scroll(self, event):
