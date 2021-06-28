@@ -9,6 +9,10 @@ nightshift is available on the [PyPI](https://pypi.org/project/nightshift/) and 
 
 `pip install nightshift`
 
+To install a local version downloaded from GitHub, use:
+
+`pip install /path/to/nightshift`
+
 ## Usage
 You will need to know your protein of interest's BMRB entry number. You can use nightshift's search command to find entry numbers:
 
