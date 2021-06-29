@@ -1,3 +1,4 @@
-from nightshift.nightshift import run_cli
+import nightshift.nightshift
 
-run_cli()
+if __name__ == '__main__':
+    nightshift.nightshift.main()

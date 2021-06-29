@@ -80,9 +80,9 @@ def plot3D(ax: Axes, correlations: List, atoms: Tuple[str], *, nolabels: bool = 
     
     atoms = atoms[:project] + atoms[project+1:]
 
-    tracker = Slices3D(ax, sliced_data, intervals, atoms=atoms, nolabels=nolabels, showlegend=showlegend, offset=offset)
-    ax.get_figure().canvas.mpl_connect('scroll_event', tracker.on_scroll)
-    return tracker
+    three_d = Slices3D(ax, sliced_data, intervals, atoms=atoms, nolabels=nolabels, showlegend=showlegend, offset=offset)
+    ax.get_figure().canvas.mpl_connect('scroll_event', three_d.on_scroll)
+    return three_d
 
 
 class Slices3D:
