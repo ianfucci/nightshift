@@ -83,6 +83,12 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
         help='''Number of slices/points in projected dimension of a 3D spectrum
             (default: %(default)s)''',
         )
+    get_parser.add_argument('-c', '--color',
+        default='tab20',
+        type=str,
+        help='''The name of a color or matplotlib colormap to color the points on the
+            spectrum (default: %(default)s)'''
+        )
     get_parser.add_argument('--nolabels', 
         action='store_true',
         help='''Plot spectrum without peak labels''',
@@ -153,6 +159,15 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
         type=int,
         help='''Number of slices/points in projected dimension of a 3D spectrum
             (default: %(default)s)''',
+        )
+    open_parser.add_argument('-c', '--colors',
+        nargs='+',
+        metavar=('COLOR1', 'COLOR2'),
+        default=['black', 'red', 'blue', 'green', 'purple'],
+        type=str,
+        help='''A list of names of colors or matplotlib colormaps to color the points on
+         the simulated spectrum. If fewer colors than files are given will cycle through
+         given colors. (default: %(default)s)'''
         )
     open_parser.add_argument('--nolabels', 
         action='store_true',

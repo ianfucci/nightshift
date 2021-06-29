@@ -1,25 +1,35 @@
+import logging
+from nightshift import constants
 from typing import Dict, List, Tuple
 
+import matplotlib.cm
 from matplotlib.axes import Axes
+from matplotlib.colors import is_color_like
 
-# Palette of colors for each residue
-RESIDUE_COLORS: Dict[str,str] = {
-    'ALA':'maroon', 'ARG':'red', 'ASN':'pink', 'ASP':'brown',
-    'CYS':'orange', 'GLU':'coral', 'GLN':'olive', 'GLY':'magenta',
-    'HIS':'khaki', 'ILE':'purple', 'LEU':'green', 'MET':'navy',
-    'LYS':'blue', 'PHE':'lime', 'PRO':'lightgreen', 'SER':'aquamarine',
-    'THR':'cyan', 'TRP':'black', 'TYR':'grey', 'VAL':'yellow',
+AXIS_LABELS: Dict[str,str] = {
+    'H': r'$^{1}$H (ppm)',
+    'N': r'$^{15}$N (ppm)',
+    'C': r'$^{13}$C (ppm)',
     }
+Correlations = List[Tuple[int,str,Tuple[float]]]
 
-AXIS_LABELS: Dict[str,str] = {'H': r'$^1$H (ppm)', 'N': r'$^{15}$N (ppm)', 'C': r'$^{13}$C (ppm)'}
-
-def plot2D(ax: Axes, correlations: List, atoms: Tuple[str], 
-          *, nolabels: bool, showlegend: bool, offset: int = 0) -> Tuple[List,List]:
+def plot2D(
+          ax: Axes, 
+          correlations: Correlations,
+          atoms: Tuple[str], 
+          *,
+          color: str = 'tab20',
+          nolabels: bool = False,
+          showlegend: bool = False,
+          offset: int = 0) \
+          -> Tuple[List,List]:
     legend = {}
     handles = []
     text = []
+    residue_colors = get_residue_colors(color)
+    
     for sequence_number, residue_type, chemical_shifts in correlations:
-        color = RESIDUE_COLORS[residue_type]
+        color = residue_colors[residue_type]
         handle = ax.plot(*chemical_shifts, 'o', c=color)[0]
         handles.append(handle)
         legend[residue_type] = handle
@@ -43,47 +53,21 @@ def plot2D(ax: Axes, correlations: List, atoms: Tuple[str],
     
     return handles, text
 
-def plot3D(ax: Axes, correlations: List, atoms: Tuple[str], *, nolabels: bool = False,
-          showlegend: bool = False, offset: int = 0, project: int = 2, slices: int = 16) -> None:
-    
-    # Get mins and maxes so all plots have the same xy coords
-    # correlations formated [sequence_number, residue_type, (chemical_shifts)]
-    shifts = list(zip(*(c[2] for c in correlations)))
-    maxes = [max(dim) for dim in shifts]
-    mins = [min(dim) for dim in shifts]
-
-    # Find intervals for bins
-    projection_max = maxes.pop(project)
-    projection_min = mins.pop(project)
-    bin_width = (projection_max - projection_min) / slices
-    cutoffs = [projection_min + i * bin_width for i in range(slices)]
-    # Add 1 to not have to deal with < vs <= for last bin
-    intervals = list(zip(cutoffs, cutoffs[1:] + [projection_max + 1]))
-
-    # Sets axes equal for all plots
-    x_padding = 0.1 * (maxes[0] - mins[0])
-    y_padding = 0.1 * (maxes[1] - mins[1])
-    ax.set_xlim((mins[0]-x_padding, maxes[0]+x_padding))
-    ax.set_ylim((mins[1]-y_padding, maxes[1]+y_padding))
-
-    sliced_data = []
-    for low, high in intervals:
-        sliced = []
-        # chemical shifts are index 2
-        for sequence_number, residue_type, chemical_shifts in sorted(correlations, key=lambda x: x[2][project]):
-            if low <= chemical_shifts[project] < high:
-                # Remove projected index from list of indices used for plotting
-                plot_point = list(chemical_shifts[:])
-                plot_point.pop(project)
-                sliced.append([sequence_number, residue_type, plot_point])
-        sliced_data.append(sliced)
-    
-    atoms = atoms[:project] + atoms[project+1:]
-
-    three_d = Slices3D(ax, sliced_data, intervals, atoms=atoms, nolabels=nolabels, showlegend=showlegend, offset=offset)
-    ax.get_figure().canvas.mpl_connect('scroll_event', three_d.on_scroll)
-    return three_d
-
+def get_residue_colors(color: str) -> Dict:
+    try:
+        cmap = matplotlib.cm.get_cmap(color)
+        color_vals = [cmap(i/20) for i in range(20)]
+    except ValueError as err:
+        if is_color_like(color):
+            color_vals = [color]*20
+        else:
+            logging.warn(
+                        f"color: '{color}' could not be interpreted as a color, setting" 
+                        f"to default. If you wanted a colormap {str(err).partition(';')[-1]}"
+                        )
+            cmap = matplotlib.cm.get_cmap('tab20')
+            color_vals = [cmap(i/20) for i in range(20)]
+    return dict(zip(constants.ONE_LETTER_TO_THREE_LETTER.values(), color_vals))
 
 class Slices3D:
     # Modified from: https://matplotlib.org/stable/gallery/event_handling/image_slices_viewer.html
@@ -127,3 +111,54 @@ class Slices3D:
         for handle in self.handles:
             handle.set_data(None,None)
             self.handles = []
+
+def plot3D(
+          ax: Axes,
+          correlations: Correlations,
+          atoms: Tuple[str],
+          *,
+          color: str = 'tab20',
+          nolabels: bool = False,
+          showlegend: bool = False,
+          offset: int = 0,
+          project: int = 2,
+          slices: int = 16) \
+          -> Slices3D:
+    
+    # Get mins and maxes so all plots have the same xy coords
+    # correlations formated [sequence_number, residue_type, (chemical_shifts)]
+    shifts = list(zip(*(c[2] for c in correlations)))
+    maxes = [max(dim) for dim in shifts]
+    mins = [min(dim) for dim in shifts]
+
+    # Find intervals for bins
+    projection_max = maxes.pop(project)
+    projection_min = mins.pop(project)
+    bin_width = (projection_max - projection_min) / slices
+    cutoffs = [projection_min + i * bin_width for i in range(slices)]
+    # Add 1 to not have to deal with < vs <= for last bin
+    intervals = list(zip(cutoffs, cutoffs[1:] + [projection_max + 1]))
+
+    # Sets axes equal for all plots
+    x_padding = 0.1 * (maxes[0] - mins[0])
+    y_padding = 0.1 * (maxes[1] - mins[1])
+    ax.set_xlim((mins[0]-x_padding, maxes[0]+x_padding))
+    ax.set_ylim((mins[1]-y_padding, maxes[1]+y_padding))
+
+    sliced_data = []
+    for low, high in intervals:
+        sliced = []
+        # chemical shifts are index 2
+        for sequence_number, residue_type, chemical_shifts in sorted(correlations, key=lambda x: x[2][project]):
+            if low <= chemical_shifts[project] < high:
+                # Remove projected index from list of indices used for plotting
+                plot_point = list(chemical_shifts[:])
+                plot_point.pop(project)
+                sliced.append([sequence_number, residue_type, plot_point])
+        sliced_data.append(sliced)
+    
+    atoms = atoms[:project] + atoms[project+1:]
+
+    three_d = Slices3D(ax, sliced_data, intervals, atoms=atoms, color=color, nolabels=nolabels, showlegend=showlegend, offset=offset)
+    ax.get_figure().canvas.mpl_connect('scroll_event', three_d.on_scroll)
+    return three_d

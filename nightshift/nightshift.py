@@ -1,5 +1,6 @@
 import argparse
 import csv
+import itertools
 from typing import List, Tuple
 import sys
 
@@ -54,11 +55,11 @@ def get(args: argparse.Namespace) -> None:
     _, ax = plt.subplots()
     # Plot correlations
     if len(selector.atoms) == 2:
-        plotting.plot2D(ax, correlations, selector.atoms, nolabels=args.nolabels, showlegend=args.showlegend, offset=args.offset)
+        plotting.plot2D(ax, correlations, selector.atoms, color=args.color, nolabels=args.nolabels, showlegend=args.showlegend, offset=args.offset)
 
     elif len(selector.atoms) == 3:
         # Have to return Slices3D object, otherwise gets GC'd and scrolling doesn't work.
-        _ = plotting.plot3D(ax, correlations, selector.atoms, nolabels=args.nolabels, showlegend=args.showlegend, offset=args.offset,
+        _ = plotting.plot3D(ax, correlations, selector.atoms, color=args.color, nolabels=args.nolabels, showlegend=args.showlegend, offset=args.offset,
         project=args.project-1, slices=args.slices)
 
     # Interactive matplotlib window opened if not saving
@@ -69,8 +70,11 @@ def get(args: argparse.Namespace) -> None:
     plt.close()
 
 def from_file(args: argparse.Namespace) -> None:
-    correlations = []
-    for in_file in args.input:
+    _, ax = plt.subplots()
+    color_cycle = itertools.cycle(args.colors)
+    
+    for in_file, color in zip(args.input, color_cycle):
+        correlations = []
         with open(in_file, 'r', newline='') as csvfile:
             reader = csv.reader(csvfile, quoting=csv.QUOTE_NONNUMERIC)
             atoms = tuple(next(reader))[1:] # get headings
@@ -78,13 +82,12 @@ def from_file(args: argparse.Namespace) -> None:
                 # sequence_number, residue_type, (shift1, shift2,...)
                 correlations.append([int(row[0][3:]), row[0][:3], tuple(row[1:])])
 
-    _, ax = plt.subplots()
-    if all(len(correlation[-1]) == 2 for correlation in correlations):
-        plotting.plot2D(ax, correlations, atoms, nolabels=args.nolabels, showlegend=args.showlegend)
-    elif all(len(correlation[-1]) == 3 for correlation in correlations):
-        # Have to return Slices3D object, otherwise gets GC'd and scrolling doesn't work.
-        _ = plotting.plot3D(ax, correlations, atoms, nolabels=args.nolabels, showlegend=args.showlegend)
-
+        if all(len(correlation[-1]) == 2 for correlation in correlations):
+            plotting.plot2D(ax, correlations, atoms, color=color, nolabels=args.nolabels, showlegend=args.showlegend)
+        
+        elif all(len(correlation[-1]) == 3 for correlation in correlations):
+            # Have to return Slices3D object, otherwise gets GC'd and scrolling doesn't work.
+            _ = plotting.plot3D(ax, correlations, atoms, color=color, nolabels=args.nolabels, showlegend=args.showlegend)
 
     # Interactive matplotlib window opened if not saving
     if not args.output:
