@@ -6,7 +6,6 @@ import re
 from typing import Dict, List, NamedTuple, Tuple
 
 from nightshift import constants
-from nightshift.bmrb import BMRBEntity
 
 Selections =  Dict[str, List[Tuple[str]]]
 Correlations = List[Tuple[int,str,Tuple[float]]]
@@ -28,8 +27,8 @@ class Selector:
     def selections(self) -> Selections:
         return {residue: [self.atoms] for residue in self.residues}
 
-    def get_correlations(self, entity: BMRBEntity) -> Correlations:
-        residue_shifts = self._get_residue_shifts(entity)
+    def get_correlations(self, entity_shifts: List[NamedTuple]) -> Correlations:
+        residue_shifts = self._get_residue_shifts(entity_shifts)
         shift_table = []
         for seq_num, residue in residue_shifts.items():
             residue_type = residue[0].Comp_ID
@@ -48,7 +47,6 @@ class Selector:
     
     @staticmethod
     def _filter_residues(residues: List[str]) -> List[str]:
-        # Check residue filter
         if residues is not None:
             # Warn for incorrect 1-letter codes
             bad_codes = set(residues.upper()) - constants.ONE_LETTER_TO_THREE_LETTER.keys()
@@ -63,11 +61,11 @@ class Selector:
             residues = list(constants.ONE_LETTER_TO_THREE_LETTER.values())
         return residues
 
-    def _get_residue_shifts(self, entity: BMRBEntity) -> ResidueShifts:
+    def _get_residue_shifts(self, entity_shifts: List[NamedTuple]) -> ResidueShifts:
         # Group atoms by residue, each item is all assigned shifts for that residue
         residue_shifts = {int(seq_num) : list(group)
                          for seq_num, group 
-                         in itertools.groupby(entity.shifts, key=attrgetter('Seq_ID'))
+                         in itertools.groupby(entity_shifts, key=attrgetter('Seq_ID'))
                          }
 
         # Apply segment filter
@@ -195,15 +193,15 @@ class AdvancedSelector(Selector):
             residue_selections[residue] = list(itertools.product(*selected_atoms))
         return residue_selections
     
-    def get_correlations(self, entity: BMRBEntity, *, label=None) -> Correlations:
+    def get_correlations(self, entity_shifts: List[NamedTuple], *, label=None) -> Correlations:
         # Intra-residue correlation same as the simple case
         if self.plus_minus == [0]*len(self.atoms):
-            return super().get_correlations(entity)
+            return super().get_correlations(entity_shifts)
 
         # Inter-residue correlation
         else:
             # Group atoms by residue, each item is all assigned shifts for that residue
-            residue_shifts = self._get_residue_shifts(entity)
+            residue_shifts = self._get_residue_shifts(entity_shifts)
             shift_table = []
             
             # Filter out residues if sequence numbers for i+- cannot be found
