@@ -1,4 +1,3 @@
-from collections import namedtuple
 import itertools
 import logging
 from operator import attrgetter
@@ -185,11 +184,23 @@ class AdvancedSelector(Selector):
                     selected_atoms.append([methyl_atoms[index] 
                                           for methyl_atoms
                                           in methyl_selection[residue]])
+                elif atom == 'H#':
+                    # needs a separate string since H is a valid atom (Hn)
+                    selected_atoms.append([residue_atom 
+                                          for residue_atom
+                                          in constants.RESIDUE_ATOMS[residue] 
+                                          if residue_atom.startswith('H')])
+                elif atom == 'C#':
+                    # needs a separate string since C is a valid atom (Co)
+                    selected_atoms.append([residue_atom 
+                                          for residue_atom
+                                          in constants.RESIDUE_ATOMS[residue] 
+                                          if residue_atom.startswith('C')])
                 else:
                     selected_atoms.append([residue_atom 
-                                           for residue_atom
-                                           in constants.RESIDUE_ATOMS[residue] 
-                                           if residue_atom.startswith(atom)])
+                                          for residue_atom
+                                          in constants.RESIDUE_ATOMS[residue] 
+                                          if residue_atom.startswith(atom)])
             residue_selections[residue] = list(itertools.product(*selected_atoms))
         return residue_selections
     
@@ -245,8 +256,7 @@ class AdvancedSelector(Selector):
                         continue
             return shift_table
     
-    @staticmethod
-    def _get_plus_minus_atoms(atoms: str):
+    def _get_plus_minus_atoms(self, atoms: str):
         # Advanced correlation setup
         atoms = [a.upper() for a in atoms]
         plus_minus = [0]*len(atoms)
@@ -272,3 +282,24 @@ class AdvancedSelector(Selector):
                 plus_minus = [pm - abs_min for pm in plus_minus]
                 logging.warn(f"No 'i-residue' found. Adjusted all indicies by -{abs_min}.")
         return tuple(plus_minus), tuple(split_atoms)
+
+class GroupSelector:
+    def __init__(self,
+                residues: List[str], 
+                atoms: Tuple[str],
+                segment: Tuple[int] = None,
+                *,
+                proR: bool = False,
+                proS: bool = False) \
+                -> None:
+        
+        atom_combinations = list(itertools.product(*atoms))
+        self.selectors = [AdvancedSelector(residues, combination, segment, proR=proR, proS=proS)
+                         for combination in atom_combinations]
+        self.atoms = self.selectors[0].atoms
+    
+    def get_correlations(self, entity_shifts: List[NamedTuple], *, label=None) -> Correlations:
+        shift_table = []
+        for selector in self.selectors:
+            shift_table.extend(selector.get_correlations(entity_shifts, label=label))
+        return shift_table

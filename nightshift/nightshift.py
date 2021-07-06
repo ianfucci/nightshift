@@ -3,7 +3,7 @@ import csv
 import itertools
 import shutil
 import sys
-from typing import List, Tuple
+from typing import List, TextIO, Tuple
 
 import matplotlib.pyplot as plt
 
@@ -11,7 +11,7 @@ from nightshift import bmrb
 from nightshift import cli
 from nightshift import constants
 from nightshift import plotting
-from nightshift.selector import Selector, AmideSelector, MethylSelector, AdvancedSelector
+from nightshift.selector import Selector, AmideSelector, MethylSelector, AdvancedSelector, GroupSelector
 
 Correlations = List[Tuple[int,str,Tuple[float]]]
 
@@ -21,11 +21,14 @@ def main() -> None:
     parser = cli.build_parser(prog)
     args = parser.parse_args()
     try:
-        # run functions assigned to keywords
-        args.func(args)
+        # check if arguments were passed and function was assigned
+        getattr(args, 'func')
     except AttributeError:
         # no arguments passed
         parser.print_help()
+    else:
+        # run functions assigned to keywords
+        args.func(args)
 
 def get(args: argparse.Namespace) -> None:
     entry_data = bmrb.get_shifts(args.entry)
@@ -42,15 +45,24 @@ def get(args: argparse.Namespace) -> None:
     if args.amide:
         selector = AmideSelector(args.residues, args.segment, sidechains=args.sidechains)
         correlations = selector.get_correlations(entity_shifts)
+    
     elif args.methyl:
         selector = MethylSelector(args.residues, args.segment, proR=args.proR, proS=args.proS)
         correlations = selector.get_correlations(entity_shifts)
+    
     elif all(atom in constants.SIMPLE_ATOMS for atom in args.custom):
+        # This fails for atom groups, which is intended
         selector = Selector(args.residues, args.custom, args.segment)
         correlations = selector.get_correlations(entity_shifts)
+    
+    elif all(isinstance(atom, tuple) for atom in args.custom):
+        selector = GroupSelector(args.residues, args.custom, args.segment, proR=args.proR, proS=args.proS)
+        if args.label is not None:
+            args.label -= 1
+        correlations = selector.get_correlations(entity_shifts, label=args.label)
+    
     else:
         selector = AdvancedSelector(args.residues, args.custom, args.segment, proR=args.proR, proS=args.proS)
-    
         if args.label is not None:
             args.label -= 1
         correlations = selector.get_correlations(entity_shifts, label=args.label)
@@ -81,7 +93,7 @@ def from_file(args: argparse.Namespace) -> None:
     
     for in_file, color in zip(args.input, color_cycle):
         correlations = []
-        with open(in_file, 'r', newline='') as csvfile:
+        with in_file as csvfile:
             reader = csv.reader(csvfile, quoting=csv.QUOTE_NONNUMERIC)
             atoms = tuple(next(reader))[1:] # get headings
             for row in reader:
@@ -124,8 +136,8 @@ def search(args: argparse.Namespace) -> None:
 def website(args: argparse.Namespace) -> None:
     bmrb.open_website(args.entry)
 
-def write_csv(filename: str, correlations: Correlations, atoms: Tuple[str], offset: int) -> None:
-    with open(filename, 'w', newline='') as csvfile:
+def write_csv(outfile: TextIO, correlations: Correlations, atoms: Tuple[str], offset: int) -> None:
+    with outfile as csvfile:
         fieldnames = ['label'] + list(atoms)
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, quoting=csv.QUOTE_NONNUMERIC)
         writer.writeheader()

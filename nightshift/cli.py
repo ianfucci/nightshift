@@ -1,4 +1,6 @@
 import argparse
+import re
+from typing import Any, Optional, Sequence, Union
 
 import matplotlib.pyplot as plt
 
@@ -37,10 +39,14 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
         )
     correlation.add_argument('--custom',
         nargs='*',
+        action=GroupParentheses,
         metavar=('ATOM1', 'ATOM2'),
         help='''Plot correlation between any two or three atoms (i.e. N C).
             Including +<number> or -<number> after an atom name allows for inter-residue
-            correlations (i.e. H N C-1). Also supports HMETHYL and CMETHYL and proR/proS.''',
+            correlations (i.e. H N C-1). Supports HMETHYL and CMETHYL and proR/proS.
+            Atoms can be grouped using parentheses (i.e. --custom H N (CA CA-1), but
+            parentheses must be escaped in most shells so --custom "H N (CA CA-1)"
+            will work.''',
         )
     
     get_parser.add_argument('-r', '--residues',
@@ -61,6 +67,7 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
              uses indices from BMRB file and does not account for offset''',
         )
     get_parser.add_argument('--csv',
+        type=argparse.FileType('w'),
         metavar='FILENAME', 
         help='''Name for output file of shifts in CSV format for later plotting'''
         )
@@ -134,10 +141,12 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
         )
     open_parser.add_argument('input',
         nargs='+',
+        type=argparse.FileType('r'),
         metavar='FILENAME(S)',
         help='''Name(s) of input CSV file(s) to plot.''',
         )
     open_parser.add_argument('--csv',
+        type=argparse.FileType('w'),
         metavar='FILENAME', 
         help='''Name for output file of shifts in CSV format for later plotting'''
         )
@@ -208,3 +217,34 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
     website_parser.set_defaults(func=nightshift.nightshift.website)
 
     return parser
+
+class GroupParentheses(argparse.Action):
+    '''Action to be used with --custom flag which sets args.custom to a tuple
+    if just atom names are given or a tuple of tuples if atom groups are given
+    an example input of atom groups as an argument: H N (CA CA-1)
+    should give args.custom = (('H',), ('N',), ('CA', 'CA-1'))
+    '''
+    def __call__(self,
+                parser: argparse.ArgumentParser,
+                namespace: argparse.Namespace,
+                values: Union[str, Sequence[Any], None],
+                option_string: Optional[str]) \
+                -> None:
+        '''__call__ overriden to parse atom names betweeen parentheses and group
+        them together, or if no parentheses are found just parse the atom names
+        '''
+        unsplit = ' '.join(values)
+        if '(' in unsplit and ')' in unsplit:
+            # pattern captures anything between parentheses or single atoms
+            pattern = r'\(([^)]+)\)|(\w+)'
+
+            # findall returns a tuple of items matched by first or second option
+            # in the pattern, using next(filter(...)) removes the empty string
+            groups = tuple(
+                          tuple(next(filter(None, match)).split())
+                          for match
+                          in re.findall(pattern, unsplit)
+                          )
+            setattr(namespace, self.dest, groups)
+        else:
+            setattr(namespace, self.dest, tuple(values))
