@@ -1,6 +1,7 @@
 import argparse
 import csv
 import itertools
+import logging
 import shutil
 import sys
 from typing import List, TextIO, Tuple
@@ -18,6 +19,10 @@ Correlations = List[Tuple[int,str,Tuple[float]]]
 def main() -> None:
     # get name of this module rather than __main__.py
     prog = __name__.rpartition('.')[-1]
+
+    # setup incredibly basic logger
+    logging.basicConfig(format='%(levelname)s: %(message)s')
+
     parser = cli.build_parser(prog)
     args = parser.parse_args()
     try:
@@ -66,6 +71,9 @@ def get(args: argparse.Namespace) -> None:
         if args.label is not None:
             args.label -= 1
         correlations = selector.get_correlations(entity_shifts, label=args.label)
+    
+    if not correlations:
+        sys.exit(1)
     
     if args.csv is not None:
         write_csv(args.csv, correlations, selector.atoms, args.offset)

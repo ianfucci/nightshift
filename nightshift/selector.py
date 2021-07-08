@@ -29,6 +29,7 @@ class Selector:
     def get_correlations(self, entity_shifts: List[NamedTuple]) -> Correlations:
         residue_shifts = self._get_residue_shifts(entity_shifts)
         shift_table = []
+        encountered_atoms = set()
         for seq_num, residue in residue_shifts.items():
             residue_type = residue[0].Comp_ID
             selections = self.selections.get(residue_type)
@@ -40,8 +41,12 @@ class Selector:
                         for atom in residue:
                             if atom.Atom_ID == spin:
                                 selected_atoms.append(float(atom.Val))
+                                encountered_atoms.add(atom.Atom_ID)
                     if len(selected_atoms) == len(self.atoms):
                         shift_table.append((seq_num, residue_type, tuple(selected_atoms)))
+        if not shift_table:
+            missing_atoms = set(self.atoms) - encountered_atoms
+            logging.error(f'Atom(s): {",".join(missing_atoms)} could not be found in assigned shifts.')
         return shift_table
     
     @staticmethod
@@ -127,7 +132,7 @@ class MethylSelector(Selector):
             non_milvat = set(self.residues) - constants.METHYL_ATOMS.keys()
             if non_milvat:
                 res_string = ','.join(sorted(non_milvat, key=self.residues.index))
-                logging.warn(f'residues other than MILVAT: ({res_string}) are ignored')
+                logging.warn(f'Residues other than MILVAT: ({res_string}) are ignored')
 
         self.residues = [residue 
                         for residue in constants.METHYL_ATOMS.keys()
@@ -214,6 +219,7 @@ class AdvancedSelector(Selector):
             # Group atoms by residue, each item is all assigned shifts for that residue
             residue_shifts = self._get_residue_shifts(entity_shifts)
             shift_table = []
+            encountered_atoms = set()
             
             # Filter out residues if sequence numbers for i+- cannot be found
             for ires in residue_shifts:
@@ -236,6 +242,7 @@ class AdvancedSelector(Selector):
                             for atom in residue:
                                 if atom.Atom_ID == correlation:
                                     selected_atoms.append((int(atom.Seq_ID), atom.Comp_ID, float(atom.Val)))
+                                    encountered_atoms.add(atom.Atom_ID)
                         group.append(selected_atoms)
 
                 # Reformat data and filter by those which have all atoms assigned
@@ -254,6 +261,10 @@ class AdvancedSelector(Selector):
                     except (IndexError, ValueError):
                         # not all atoms have assigned shifts or residue(s) filtered out
                         continue
+
+            if not shift_table:
+                missing_atoms = set(self.atoms) - encountered_atoms
+                logging.error(f'Atom(s): {",".join(missing_atoms)} could not be found in assigned shifts.')
             return shift_table
     
     def _get_plus_minus_atoms(self, atoms: str):
