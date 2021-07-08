@@ -17,6 +17,8 @@ from nightshift.selector import Selector, AmideSelector, MethylSelector, Advance
 Correlations = List[Tuple[int,str,Tuple[float]]]
 
 def main() -> None:
+    '''Run functions assigned to CLI keywords or print help if no arguments passed.
+    '''
     # get name of this module rather than __main__.py
     prog = __name__.rpartition('.')[-1]
 
@@ -36,6 +38,9 @@ def main() -> None:
         args.func(args)
 
 def get(args: argparse.Namespace) -> None:
+    '''Gets assigned chemical shifts from BMRB entry, selects atoms, plots spectra
+    and handes output.
+    '''
     entry_data = bmrb.get_shifts(args.entry)
 
     if entry_data is None:
@@ -96,6 +101,8 @@ def get(args: argparse.Namespace) -> None:
     plt.close()
 
 def from_file(args: argparse.Namespace) -> None:
+    '''Opens list of CSV files and plots overlay of all spectra.
+    '''
     _, ax = plt.subplots()
     color_cycle = itertools.cycle(args.colors)
     
@@ -123,6 +130,8 @@ def from_file(args: argparse.Namespace) -> None:
     plt.close()
 
 def search(args: argparse.Namespace) -> None:
+    '''Wrapper for bmrb.instant_search which prints search results on the command line.
+    '''
     if args.terms:
         terms = ' '.join(args.terms)
     else:
@@ -142,9 +151,13 @@ def search(args: argparse.Namespace) -> None:
         print(line)
 
 def website(args: argparse.Namespace) -> None:
+    '''Wrapper for bmrb.open_website.
+    '''
     bmrb.open_website(args.entry)
 
 def write_csv(outfile: TextIO, correlations: Correlations, atoms: Tuple[str], offset: int) -> None:
+    '''Helper function for outputting CSV files when --csv is passed.
+    '''
     with outfile as csvfile:
         fieldnames = ['label'] + list(atoms)
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, quoting=csv.QUOTE_NONNUMERIC)
@@ -155,6 +168,8 @@ def write_csv(outfile: TextIO, correlations: Correlations, atoms: Tuple[str], of
             writer.writerow(row)
 
 def choose_entity(names: list) -> int:
+    '''Helper function for entries with more than one entity, prompts user with choice of which entity.
+    '''
     while True:
         try:
             print('Found more than one assigned chemical shift list, please select:')

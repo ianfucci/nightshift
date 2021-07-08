@@ -11,7 +11,12 @@ Correlations = List[Tuple[int,str,Tuple[float]]]
 ResidueShifts = Dict[int, List[NamedTuple]]
 
 class Selector:
-    '''Defines selector for any correlations in constants.SIMPLE_ATOMS'''
+    '''Selector objects are used with a list of chemical shifts to select specific
+    correlations defined by `atoms'. This base class defines how correlations are
+    selected with its only public method `get_correlations'. Residues defines which
+    residues will be shown in the final spectrum. This class is used for any 
+    correlations in constants.SIMPLE_ATOMS.
+    '''
     def __init__(self, 
                 residues: List[str] = None,
                 atoms: Tuple[str] = None,
@@ -93,6 +98,9 @@ class Selector:
                }
 
 class AmideSelector(Selector):
+    '''Subclass of Selector that returns H-N correlations, i.e. a 1H-15N HSQC.
+    Includes TRP indoles by default and can include sidechains on ASN and GLN if desired.
+    '''
     def __init__(self,
                 residues: List[str] = None, 
                 segment: Tuple[int] = None,
@@ -118,6 +126,9 @@ class AmideSelector(Selector):
         return residue_selections
 
 class MethylSelector(Selector):
+    '''Subclass of Selector that returns H - N correlations, i.e. a 1H-13C HMQC.
+    Allows proR and proS labeling to be simulated.
+    '''
     def __init__(self,
                 residues: List[str] = None,
                 segment: Tuple[int] = None,
@@ -154,6 +165,11 @@ class MethylSelector(Selector):
                }
 
 class AdvancedSelector(Selector):
+    '''Selector sublcass that allows for i+- correlations (i.e. H N CA-1) and handles
+    residues with branched chains or multiple atoms (usually protons) in the same position.
+    CMETHYL and HMETHYL can be used as atoms to select MILVAT methyl atoms or H# and C#
+    can be used to simulate TOCSY style experiments.
+    '''
     def __init__(self,
                 residues: List[str], 
                 atoms: Tuple[str],
@@ -295,6 +311,9 @@ class AdvancedSelector(Selector):
         return tuple(plus_minus), tuple(split_atoms)
 
 class GroupSelector:
+    '''Selector-like object which handles atom groups i.e. H N (CA CA-1) and appends the
+    correlations, plotting them all on a single spectrum.
+    '''
     def __init__(self,
                 residues: List[str], 
                 atoms: Tuple[str],

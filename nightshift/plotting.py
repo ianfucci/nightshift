@@ -23,6 +23,10 @@ def plot2D(
           showlegend: bool = False,
           offset: int = 0) \
           -> Tuple[List,List]:
+    '''Plots 2D spectra and slices for 3D spectra returns handles and annotations to be 
+    used by the Slices3D class which uses them to update the figure when the mouse is scrolled.
+    '''
+
     legend = {}
     handles = []
     text = []
@@ -70,7 +74,12 @@ def get_residue_colors(color: str) -> Dict:
     return dict(zip(constants.ONE_LETTER_TO_THREE_LETTER.values(), color_vals))
 
 class Slices3D:
-    # Modified from: https://matplotlib.org/stable/gallery/event_handling/image_slices_viewer.html
+    '''Class the handles state when scrolling through 2D slices of a 3D spectrum. When the mouse
+    is scrolled clears the axes and plots the next slices data. Data must be split into intervals
+    before being passed. These intverals define the boundaries of each slice. Passes kwargs to 
+    plot2D to allow for coloring, legends and labels.
+    Modified from: https://matplotlib.org/stable/gallery/event_handling/image_slices_viewer.html
+    '''
     def __init__(self, ax, data, intervals, **kwargs):
         self.ax = ax
         self.data = data
@@ -124,7 +133,11 @@ def plot3D(
           project: int = 2,
           slices: int = 16) \
           -> Slices3D:
-    
+    '''
+    Factory for the Slices3D object. Splits data into intervals and sets up scrolling.
+    Has to return the Slices3D object to the main function, otherwise it is GC'd and scrolling
+    stops working.
+    '''
     # Get mins and maxes so all plots have the same xy coords
     # correlations formated [sequence_number, residue_type, (chemical_shifts)]
     shifts = list(zip(*(c[2] for c in correlations)))
