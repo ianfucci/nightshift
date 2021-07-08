@@ -54,7 +54,7 @@ def plot2D(
     # Label axes
     ax.set_xlabel(AXIS_LABELS[atoms[0][0]])
     ax.set_ylabel(AXIS_LABELS[atoms[1][0]])
-    
+
     return handles, text
 
 def get_residue_colors(color: str) -> Dict:
@@ -80,7 +80,12 @@ class Slices3D:
     plot2D to allow for coloring, legends and labels.
     Modified from: https://matplotlib.org/stable/gallery/event_handling/image_slices_viewer.html
     '''
-    def __init__(self, ax, data, intervals, **kwargs):
+    def __init__(self,
+                ax: Axes,
+                data: List[List[float]],
+                intervals: List[Tuple[float]],
+                **kwargs) \
+                -> None:
         self.ax = ax
         self.data = data
         self.intervals = intervals

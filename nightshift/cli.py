@@ -175,8 +175,9 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
         default=['black', 'red', 'blue', 'green', 'purple'],
         type=str,
         help='''A list of names of colors or matplotlib colormaps to color the points on
-         the simulated spectrum. If fewer colors than files are given will cycle through
-         given colors. (default: %(default)s)'''
+            the simulated spectrum. If fewer colors than files are given will cycle through
+            given colors. Cannot make each spectra in a 3D different colors! Will only use 
+            first. (default: %(default)s)'''
         )
     open_parser.add_argument('--nolabels', 
         action='store_true',

@@ -2,6 +2,7 @@ import argparse
 import csv
 import itertools
 import logging
+from operator import le
 import shutil
 import sys
 from typing import List, TextIO, Tuple
@@ -90,14 +91,27 @@ def get(args: argparse.Namespace) -> None:
 
     elif len(selector.atoms) == 3:
         # Have to return Slices3D object, otherwise gets GC'd and scrolling doesn't work.
-        _ = plotting.plot3D(ax, correlations, selector.atoms, color=args.color, nolabels=args.nolabels, showlegend=args.showlegend, offset=args.offset,
+        three_d = plotting.plot3D(ax, correlations, selector.atoms, color=args.color, nolabels=args.nolabels, showlegend=args.showlegend, offset=args.offset,
         project=args.project-1, slices=args.slices)
 
     # Interactive matplotlib window opened if not saving
     if not args.output:
         plt.show()
     else:
-        plt.savefig(args.output, dpi=300)
+        if len(selector.atoms) == 2:
+            plt.savefig(args.output, dpi=300)
+        else:
+            # save each slice of 3D spectra as a separate file
+            plt.close()
+            atoms = selector.atoms[:args.project-1] + selector.atoms[args.project:]
+            for i, data in enumerate(three_d.data):
+                _, ax = plt.subplots()
+                plotting.plot2D(ax, data, atoms, color=args.color, nolabels=args.nolabels, showlegend=args.showlegend, offset=args.offset)
+                ax.annotate(f'{(sum(three_d.intervals[i]))/2:.1f} ppm', xy=(0.02,0.94), xycoords='axes fraction', horizontalalignment='left')
+
+                name, extension = args.output.split('.')
+                plt.savefig(f'{name}_slice{i+1}.{extension}', dpi=300)
+                plt.close()
     plt.close()
 
 def from_file(args: argparse.Namespace) -> None:
@@ -105,6 +119,7 @@ def from_file(args: argparse.Namespace) -> None:
     '''
     _, ax = plt.subplots()
     color_cycle = itertools.cycle(args.colors)
+    all_correlations = []
     
     for in_file, color in zip(args.input, color_cycle):
         correlations = []
@@ -117,16 +132,34 @@ def from_file(args: argparse.Namespace) -> None:
 
         if all(len(correlation[-1]) == 2 for correlation in correlations):
             plotting.plot2D(ax, correlations, atoms, color=color, nolabels=args.nolabels, showlegend=args.showlegend)
-        
-        elif all(len(correlation[-1]) == 3 for correlation in correlations):
-            # Have to return Slices3D object, otherwise gets GC'd and scrolling doesn't work.
-            _ = plotting.plot3D(ax, correlations, atoms, color=color, nolabels=args.nolabels, showlegend=args.showlegend)
+        else:
+            all_correlations.extend(correlations)
+    
+    if all(len(correlation[-1]) == 3 for correlation in correlations):
+        three_d = plotting.plot3D(ax, all_correlations, atoms, color=color, nolabels=args.nolabels, showlegend=args.showlegend,
+        project=args.project-1, slices=args.slices)
+
+    if args.csv is not None:
+        write_csv(args.csv, all_correlations, atoms)
 
     # Interactive matplotlib window opened if not saving
     if not args.output:
         plt.show()
     else:
-        plt.savefig(args.output, dpi=300)
+        if all(len(correlation[-1]) == 2 for correlation in correlations):
+            plt.savefig(args.output, dpi=300)
+        else:
+            # save each slice of 3D spectra as a separate file
+            plt.close()
+            atoms = atoms[:args.project-1] + atoms[args.project:]
+            for i, data in enumerate(three_d.data):
+                _, ax = plt.subplots()
+                plotting.plot2D(ax, data, atoms, color=color, nolabels=args.nolabels, showlegend=args.showlegend)
+                ax.annotate(f'{(sum(three_d.intervals[i]))/2:.1f} ppm', xy=(0.02,0.94), xycoords='axes fraction', horizontalalignment='left')
+
+                name, extension = args.output.split('.')
+                plt.savefig(f'{name}_slice{i+1}.{extension}', dpi=300)
+                plt.close()
     plt.close()
 
 def search(args: argparse.Namespace) -> None:
@@ -155,7 +188,7 @@ def website(args: argparse.Namespace) -> None:
     '''
     bmrb.open_website(args.entry)
 
-def write_csv(outfile: TextIO, correlations: Correlations, atoms: Tuple[str], offset: int) -> None:
+def write_csv(outfile: TextIO, correlations: Correlations, atoms: Tuple[str], offset: int = 0) -> None:
     '''Helper function for outputting CSV files when --csv is passed.
     '''
     with outfile as csvfile:
