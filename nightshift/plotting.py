@@ -40,8 +40,8 @@ def plot2D(
         if not nolabels:
             text.append(ax.annotate(f'{residue_type}{sequence_number + offset}', chemical_shifts))
         
-    # Show the legend when no labels are shown, or showlegend argument is passed
-    if nolabels or showlegend:
+    # Show the legend when showlegend argument is passed
+    if showlegend:
         # Residues are added as they are encountered, not in sorted order
         sort_legend = {color: residue for residue, color in sorted(legend.items())}
         ax.legend(sort_legend.keys(), sort_legend.values())
