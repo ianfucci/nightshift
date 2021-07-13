@@ -1,4 +1,5 @@
 import argparse
+from collections import namedtuple
 import csv
 from collections import defaultdict
 import itertools
@@ -12,6 +13,7 @@ import matplotlib.pyplot as plt
 from nightshift import bmrb
 from nightshift import cli
 from nightshift import constants
+from nightshift import fileio
 from nightshift import plotting
 from nightshift.selector import Selector, AmideSelector, MethylSelector, AdvancedSelector, GroupSelector
 
@@ -42,7 +44,15 @@ def get(args: argparse.Namespace) -> None:
     '''Gets assigned chemical shifts from BMRB entry, selects atoms, plots spectra
     and handes output.
     '''
-    entry_data = bmrb.get_shifts(args.entry)
+
+    try:
+        # only opening 1 file
+        with open(args.entry) as in_file:
+            shifts = fileio.read_nef_converted_nmrstar(in_file)
+            NMRFileData = namedtuple('NMRFileData', ['names', 'shifts'])
+            entry_data = NMRFileData([in_file.name.rpartition('.')[0]], [shifts])
+    except FileNotFoundError:
+        entry_data = bmrb.get_shifts(args.entry)
 
     if entry_data is None:
         sys.exit(1)
