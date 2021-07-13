@@ -248,4 +248,4 @@ class GroupParentheses(argparse.Action):
                           )
             setattr(namespace, self.dest, groups)
         else:
-            setattr(namespace, self.dest, tuple(values))
+            setattr(namespace, self.dest, tuple(unsplit.split()))
