@@ -34,7 +34,7 @@ def get_shifts(entry_id: str) -> Tuple[List, List[List[NamedTuple]]]:
         if _got_bad_code(loop_request):
             return
         loop_json = loop_request.json()
-        # import pdb; pdb.set_trace()
+
         shift_table = loop_json[entry_id]['Atom_chem_shift']
         data = [entity['data'] for entity in shift_table]
         tags = [entity['tags'] for entity in shift_table]
