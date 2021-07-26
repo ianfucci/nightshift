@@ -1,8 +1,8 @@
 import argparse
 import csv
+from collections import defaultdict
 import itertools
 import logging
-from operator import le
 import shutil
 import sys
 from typing import List, TextIO, Tuple
@@ -121,6 +121,11 @@ def from_file(args: argparse.Namespace) -> None:
     color_cycle = itertools.cycle(args.colors)
     all_correlations = []
     
+     # need to keep track for showing CSPs
+    csps = defaultdict(list)
+    all_text = []
+    fix_labels = False
+    
     for in_file, color in zip(args.input, color_cycle):
         correlations = []
         with in_file as csvfile:
@@ -131,13 +136,29 @@ def from_file(args: argparse.Namespace) -> None:
                 correlations.append([int(row[0][3:]), row[0][:3], tuple(row[1:])])
 
         if all(len(correlation[-1]) == 2 for correlation in correlations):
-            plotting.plot2D(ax, correlations, atoms, color=color, nolabels=args.nolabels, showlegend=args.showlegend)
+            if args.showcsp and args.nolabels:
+                # Use lables to match peaks for CSPs
+                fix_labels = True
+                args.nolabels = False
+            _, text = plotting.plot2D(ax, correlations, atoms, color=color, nolabels=args.nolabels, showlegend=args.showlegend)
+            for label in text:
+                all_text.append(label)
+                csps[label.get_text()].append(label.xy)
         else:
             all_correlations.extend(correlations)
     
     if all(len(correlation[-1]) == 3 for correlation in correlations):
         three_d = plotting.plot3D(ax, all_correlations, atoms, color=color, nolabels=args.nolabels, showlegend=args.showlegend,
         project=args.project-1, slices=args.slices)
+
+    if args.showcsp:
+        for points in csps.values():
+            if len(points) == 2:
+                xs, ys = zip(*points)
+                plt.plot(xs, ys, 'k--', linewidth=1)
+        if fix_labels:
+            for label in all_text:
+                label.remove()
 
     if args.csv is not None:
         write_csv(args.csv, all_correlations, atoms)

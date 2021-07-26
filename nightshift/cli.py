@@ -179,6 +179,10 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
             given colors. Cannot make each spectra in a 3D different colors! Will only use 
             first. (default: %(default)s)'''
         )
+    open_parser.add_argument('--showcsp', 
+        action='store_true',
+        help='''Draw arrows between points with the same residue number.''',
+        )
     open_parser.add_argument('--nolabels', 
         action='store_true',
         help='''Plot spectrum without peak labels''',
