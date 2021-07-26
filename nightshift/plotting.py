@@ -38,7 +38,9 @@ def plot2D(
         handles.append(handle)
         legend[residue_type] = handle
         if not nolabels:
-            text.append(ax.annotate(f'{residue_type}{sequence_number + offset}', chemical_shifts))
+            used_labels = set(t.get_text() for t in text)
+            label = _check_label(f'{residue_type}{sequence_number + offset}', used_labels)
+            text.append(ax.annotate(label, chemical_shifts))
         
     # Show the legend when showlegend argument is passed
     if showlegend:
@@ -72,6 +74,16 @@ def get_residue_colors(color: str) -> Dict:
             cmap = matplotlib.cm.get_cmap('tab20')
             color_vals = [cmap(i/20) for i in range(20)]
     return dict(zip(constants.ONE_LETTER_TO_THREE_LETTER.values(), color_vals))
+
+def _check_label(label: str, used_labels: List[str]) -> str:
+    if label not in used_labels:
+        return label
+    else:
+        try:
+            label, index = label.split('_')
+            return _check_label(f'{label}_{int(index) + 1}', used_labels)
+        except ValueError:
+            return _check_label(f'{label}_2', used_labels)
 
 class Slices3D:
     '''Class the handles state when scrolling through 2D slices of a 3D spectrum. When the mouse

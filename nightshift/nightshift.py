@@ -153,7 +153,7 @@ def from_file(args: argparse.Namespace) -> None:
 
     if args.showcsp:
         for points in csps.values():
-            if len(points) == 2:
+            if len(points) > 1:
                 xs, ys = zip(*points)
                 plt.plot(xs, ys, 'k--', linewidth=1)
         if fix_labels:
