@@ -48,7 +48,20 @@ def get(args: argparse.Namespace) -> None:
     try:
         # only opening 1 file
         with open(args.entry) as in_file:
-            shifts = fileio.read_nef_converted_nmrstar(in_file)
+            try:
+                shifts = fileio.read_nef_converted_nmrstar(in_file)
+            except EOFError:
+                in_file.seek(0,0) # reset to top of file
+                shifts = fileio.read_shiftx2_output_nmrstar(in_file)
+                # Some atom names for protons are different, correcting for methyls
+                constants.METHYL_ATOMS = {'ILE':[('HD1','CD1')],
+                'LEU':[('HD1','CD1'), ('HD2','CD2')],
+                'VAL':[('HG1','CG1'), ('HG2','CG2')],
+                'MET':[('HE','CE')],
+                'ALA':[('HB','CB')],
+                'THR':[('HG2','CG2')],
+                }
+
             NMRFileData = namedtuple('NMRFileData', ['names', 'shifts'])
             entry_data = NMRFileData([in_file.name.rpartition('.')[0]], [shifts])
     except FileNotFoundError:
