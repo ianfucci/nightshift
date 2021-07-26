@@ -61,6 +61,20 @@ def get(args: argparse.Namespace) -> None:
                 'ALA':[('HB','CB')],
                 'THR':[('HG2','CG2')],
                 }
+                constants.METHYL_ATOMS_PROR = {'ILE':[('HD1','CD1')],
+                'LEU':[('HD1','CD1')],
+                'VAL':[('HG1','CG1')],
+                'MET':[('HE','CE')],
+                'ALA':[('HB','CB')],
+                'THR':[('HG2','CG2')],
+                }
+                constants.METHYL_ATOMS_PROS = {'ILE':[('HD1','CD1')],
+                'LEU':[('HD2','CD2')],
+                'VAL':[('HG2','CG2')],
+                'MET':[('HE','CE')],
+                'ALA':[('HB','CB')],
+                'THR':[('HG2','CG2')],
+                }
 
             NMRFileData = namedtuple('NMRFileData', ['names', 'shifts'])
             entry_data = NMRFileData([in_file.name.rpartition('.')[0]], [shifts])
