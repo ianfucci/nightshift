@@ -78,7 +78,7 @@ The `--custom` option also allows for 3D correlations to be plotted. The matplot
 
 By default 16 slices are generated, this can be altered with the `--slices` option (i.e. `slices 32` or `slices 1` for a 2D projection). The `--project` parameter can take a value of 1, 2 or 3 which chooses which dimension to project on. For a 3D HNCA (NOTE: you must escape with double quotes):
 
-`nightshift get 4493 --custom H N (CA CA-1) --project 2 --slices 32`
+`nightshift get 4493 --custom "H N (CA CA-1)" --project 2 --slices 32`
 
 Plus and minus can also be used on 3D correlations:
 
