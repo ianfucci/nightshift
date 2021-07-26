@@ -76,9 +76,9 @@ The `--custom` option also allows for 3D correlations to be plotted. The matplot
 
 `nightshift get 4493 --custom H N CA`
 
-By default 16 slices are generated, this can be altered with the `--slices` option (i.e. `slices 32` or `slices 1` for a 2D projection). The `--project` parameter can take a value of 1, 2 or 3 which chooses which dimension to project on. For a 3D HNCA (though this can currently only be for i or i-1):
+By default 16 slices are generated, this can be altered with the `--slices` option (i.e. `slices 32` or `slices 1` for a 2D projection). The `--project` parameter can take a value of 1, 2 or 3 which chooses which dimension to project on. For a 3D HNCA (NOTE: you must escape with double quotes):
 
-`nightshift get 4493 --custom H N CA --project 2 --slices 32`
+`nightshift get 4493 --custom H N (CA CA-1) --project 2 --slices 32`
 
 Plus and minus can also be used on 3D correlations:
 
@@ -92,6 +92,7 @@ Formatting options include:
 - `--showlegend` to add a legend
 - `--nolabels` to remove the residue/atom name and numbers from the plot, also shows the legend
 - `--offset` to add a constant to the indices used by BMRB (to reflect the numbering you are used to)
+- `--color` takes a color such as _red_ which will color all residues one color or a matplotlib colormap name such as _viridis_ or _tab20_ which will color each residue with a differen color on the colormap
 
 A csv file containing the label and chemical shifts of both atoms can be saved using the `--csv` flag and providing a file name:
 
@@ -111,7 +112,13 @@ Then plot their overlay:
 
 `nightshift open output1.csv output2.csv`
 
-This script also accepts the `--showlegend` and `--nolabels` flags.
+If two labels are the same between the proteins (labels are residue type and sequence number), you can visualize tahe CSP using `--showcsp`, which will draw a line between the two.
+This works for 4493 and 3433, but is not very informative.
+
+`nightshift open output1.csv output2.csv --showcsp`
+
+Also accepts the `--showlegend` and `--nolabels` flags.
+`--colors` takes a list of color names or list of colormaps and works like `--color` for individual plots. 
 
 ## Interesting examples
 - ILV methyl spectrum:
@@ -133,6 +140,16 @@ This script also accepts the `--showlegend` and `--nolabels` flags.
 - 2D NCO:
 
   `nightshift get 4493 --custom C-1 N`
+
+- 2D CAN
+
+  `nightshift get 4493 --custom "(CA CA-1) N" --label 1`
+
+- 3D HNCACB
+  `nightshift get 4493 --custom "H N (CA CA-1 CB CB-1)" --project 2 --label 3 --slices 32`
+
+- 3D 15N TOCSY HSQC
+  `nightshift get 4493 --custom "H H# N" --slices 64`
 
 - Arg/Lys side chain carbon correlations (a la [Pritchard and Hansen, 2019](https://doi.org/10.1038/s41467-019-09743-4))
   
