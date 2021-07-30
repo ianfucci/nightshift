@@ -212,11 +212,11 @@ class AdvancedSelector(Selector):
                                           in constants.RESIDUE_ATOMS[residue] 
                                           if residue_atom.startswith('H')])
                 elif atom == 'C#':
-                    # needs a separate string since C is a valid atom (Co)
+                    # needs a separate string since C is a valid atom (Co), do not include Co
                     selected_atoms.append([residue_atom 
                                           for residue_atom
                                           in constants.RESIDUE_ATOMS[residue] 
-                                          if residue_atom.startswith('C')])
+                                          if residue_atom.startswith('C') and len(residue_atom) > 1])
                 else:
                     selected_atoms.append([residue_atom 
                                           for residue_atom

@@ -106,7 +106,7 @@ First, generate two output files:
 
 `nightshift get 4493 --amide --csv output1.csv`
 
-`nightshift 3433 --amide --csv output2.csv`
+`nightshift get 3433 --amide --csv output2.csv`
 
 Then plot their overlay:
 
