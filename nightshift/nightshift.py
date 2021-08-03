@@ -8,6 +8,7 @@ import sys
 from typing import List, TextIO, Tuple
 
 import matplotlib.pyplot as plt
+plt.switch_backend('Qt5Agg')
 
 from nightshift import bmrb
 from nightshift import cli
