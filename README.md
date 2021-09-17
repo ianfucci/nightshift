@@ -1,7 +1,17 @@
+
 # nightshift
+[![PyPi version](https://badgen.net/pypi/v/nightshift/)](https://pypi.com/project/nightshift)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5513075.svg)](https://doi.org/10.5281/zenodo.5513075)
+
 A python library and command line program for plotting simulated 2D and 3D NMR spectra from assigned chemical shifts from the [BMRB](https://bmrb.io)
 
 Peak assignments are pulled using the BMRB API (https://github.com/uwbmrb/BMRB-API) and plotted with matplotlib. Spectra produced by this script do not always reflect reality, as many entries do not have 100% assignments. Be sure to know what assignments are contained in the entry beforehand.
+
+## Citation
+
+If you find this code useful please cite our paper:
+
+Fucci, I.J. and Byrd, R.A. (2021), nightshift: A Python program for plotting simulated NMR spectra from assigned chemical shifts from the Biological Magnetic Resonance Data Bank. Protein Science. Accepted Author Manuscript. https://doi.org/10.1002/pro.4181
 
 ## Installation
 I recommend installing in a [virtualenv](https://docs.python.org/3/tutorial/venv.html) to avoid any conflicts with your python installation.
