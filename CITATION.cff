@@ -18,7 +18,7 @@ preferred-citation:
   - family-names: "Byrd"
     given-names: "R. Andrew"
     orcid: "https://orcid.org/0000-0003-3625-4232"
-  doi: "https://doi.org/10.1002/pro.4181"
+  doi: "10.1002/pro.4181"
   journal: "Protein Science"
   year: 2021
   title: "nightshift: A Python program for plotting simulated NMR spectra from assigned chemical shifts from the Biological Magnetic Resonance Data Bank"
