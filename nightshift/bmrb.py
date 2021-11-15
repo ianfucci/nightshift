@@ -16,7 +16,7 @@ def get_shifts(entry_id: str) -> Tuple[List, List[List[NamedTuple]]]:
     
     # Cannot request tags and loops at the same time, so two requests
     # We could get multiple loops and tags per request. Just using one currently.
-    tags_payload = {'tag': ['Entity.name', 'Assigned_chem_shift_list.Name']}
+    tags_payload = {'tag': ['Entity.name', 'Assigned_chem_shift_list.Sf_framecode']}
     loops_payload = {'loop': 'Atom_chem_shift'}
     headers = {'Application': 'nightshift'}
 
@@ -25,9 +25,12 @@ def get_shifts(entry_id: str) -> Tuple[List, List[List[NamedTuple]]]:
             return
         entry_tags = tag_request.json()[entry_id]
 
-        names = entry_tags.get('Assigned_chem_shift_list.Name')
-        if not names:
-            names = entry_tags.get('Entity.name')
+        names = entry_tags.get('Assigned_chem_shift_list.Sf_framecode')
+        entity_names = entry_tags.get('Entity.name')
+        if len(entity_names) == len(names):
+            names = entity_names
+        elif not names:
+            names = entity_names
 
     # Use BMRB API to get entry number's assigned chemical shifts
     with requests.get(bmrb_entry_url, loops_payload) as loop_request:
