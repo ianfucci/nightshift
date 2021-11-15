@@ -11,7 +11,7 @@ Peak assignments are pulled using the BMRB API (https://github.com/uwbmrb/BMRB-A
 
 If you find this code useful please cite our paper:
 
-Fucci, I.J. and Byrd, R.A. (2021), nightshift: A Python program for plotting simulated NMR spectra from assigned chemical shifts from the Biological Magnetic Resonance Data Bank. Protein Science. Accepted Author Manuscript. https://doi.org/10.1002/pro.4181
+Fucci, I.J. and Byrd, R.A. (2021), nightshift: A Python program for plotting simulated NMR spectra from assigned chemical shifts from the Biological Magnetic Resonance Data Bank. Protein Science. https://doi.org/10.1002/pro.4181
 
 ## Installation
 I recommend installing in a [virtualenv](https://docs.python.org/3/tutorial/venv.html) to avoid any conflicts with your python installation.
