@@ -104,15 +104,11 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
         action='store_true', 
         help='''Show a legend on the spectrum with residue colors''',
         )
-    
-    mpl_filetypes = plt.figure().canvas.get_supported_filetypes()
-    file_extensions = ' '.join(f'.{extension}' for extension in mpl_filetypes.keys())
-    plt.close()
 
     get_parser.add_argument('-o', '--output', 
         metavar='FILENAME',
         help=f'''Save spectrum to file and do not plot in interactive mode with matplotlib.
-            Can have the following extensions: {file_extensions} '''
+            Can have the following extensions: .ps .eps .pdf .pgf .png .raw .rgba .svg .svgz .jpg .jpeg. tif .tiff'''
         )
 
     # Show sidechains for --amide or proR/proS for --methyl and --custom HMETHYL/CMETHYL
