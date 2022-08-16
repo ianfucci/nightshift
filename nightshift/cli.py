@@ -190,7 +190,7 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
     open_parser.add_argument('-o', '--output', 
         metavar='FILENAME',
         help=f'''Save spectrum to file and do not plot in interactive mode with matplotlib.
-            Can have the following extensions: {file_extensions} '''
+            Can have the following extensions: .ps .eps .pdf .pgf .png .raw .rgba .svg .svgz .jpg .jpeg. tif .tiff'''
         )
 
     # Search BMRB for an entry ID using text or a PDB ID
