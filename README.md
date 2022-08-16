@@ -11,7 +11,7 @@ Peak assignments are pulled using the BMRB API (https://github.com/uwbmrb/BMRB-A
 
 If you find this code useful please cite our paper:
 
-Fucci, I.J. and Byrd, R.A. (2021), nightshift: A Python program for plotting simulated NMR spectra from assigned chemical shifts from the Biological Magnetic Resonance Data Bank. Protein Science. https://doi.org/10.1002/pro.4181
+Fucci, I. J. and Byrd, R. A. nightshift: A Python program for plotting simulated NMR spectra from assigned chemical shifts from the Biological Magnetic Resonance Data Bank. Protein Sci. 2022, 31 (1), 63–74. https://doi.org/10.1002/pro.4181.
 
 ## Installation
 I recommend installing in a [virtualenv](https://docs.python.org/3/tutorial/venv.html) to avoid any conflicts with your python installation.
@@ -168,3 +168,30 @@ Also accepts the `--showlegend` and `--nolabels` flags.
   `nightshift get 4493 --custom CD CE -r K --csv 4493_lys.csv`
   
   `nightshift open 4493_arg.csv 4493_lys.csv --showlegend`
+
+## Transfering assignments to nmrDraw
+I have only tested that this works for amide and methyl because of limitations with NMRpipe. It is possible other correllations will work fine. See the `cs2pk.tcl` documentation. There is a hacky work around where methyl spectra are considered HA/CA spectra. 
+To generate the TALOS file required as input use the `--talos` flag:
+  `nightshift get 4493 --amide --talos 4493.tab`
+
+  or
+
+  `nightshift get 4493 --methyl -r ILV --talos 4493.tab`
+
+To transfer run the following for amide: 
+
+  `cs2pk.tcl -in 4493.tab -out sim.tab -type hn`
+
+  and for methyl:
+
+  `cs2pk.tcl -in <talos.tab> -out <sim.tab> -type haca`
+
+Compare against your spectrum visually (assuming the name of the file is test.ft2 and the peak list is test.tab):
+
+  `specView.tcl -in test.ft2 -multiColor -peak -tab test.tab -pkLab ASS -ass sim.tab -outTab out.tab -xAssVar X_PPM -yAssVar Y_PPM`
+
+  or automatically without an interface:
+
+  `ipap.tcl -specName1 test.ft2 -inName1 test.tab -outName1 out.tab -assName sim.tab -xVar X_PPM -xAss X_PPM -yVar Y_PPM -yAss Y_PPM -single -ndim 2 -exit`
+
+See the documentation for `specView.tcl` and `ipap.tcl` for a full list of parameters.
