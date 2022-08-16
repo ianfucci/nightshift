@@ -71,6 +71,11 @@ def build_parser(prog: str) -> argparse.ArgumentParser:
         metavar='FILENAME', 
         help='''Name for output file of shifts in CSV format for later plotting'''
         )
+    get_parser.add_argument('--talos',
+        type=argparse.FileType('w'),
+        metavar='FILENAME', 
+        help='''Name for output file of shifts in TALOS format for assignment transferring'''
+        )
     get_parser.add_argument('--label', 
         type=int,
         choices=[1,2,3],

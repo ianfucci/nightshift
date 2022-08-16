@@ -60,6 +60,17 @@ def get_bmrb_url(version: str, *args: str) -> str:
     '''
     return f'http://api.bmrb.io/{version}/' + '/'.join(args)
 
+def get_sequence(entry_id: str) -> Tuple[str, str]:
+    bmrb_entry_url = get_bmrb_url('v2', 'entry', entry_id)
+    payload = {'tag': ['Entity.name','Entity.Polymer_seq_one_letter_code']}
+    headers = {'Application': 'nightshift'}
+
+    sequence_data = requests.get(bmrb_entry_url, params=payload, headers=headers)
+    sequence_json = sequence_data.json()[entry_id]
+    name = sequence_json['Entity.name'][0]
+    sequence = sequence_json['Entity.Polymer_seq_one_letter_code'][0].replace('\n', ' ')
+    return name, sequence
+
 def _got_bad_code(response: requests.Response) -> bool:
     '''Checks for a 403 response which means >50 requests per second or a 
     404 response which means the entry could not be found.
