@@ -5,9 +5,9 @@ authors:
   given-names: "Ian"
   orcid: "https://orcid.org/0000-0001-5146-4129"
 title: "nightshift"
-version: 1.0.0
-doi: 10.5281/zenodo.5513075
-date-released: 2021-09-16
+version: 1.1
+doi: 10.5281/zenodo.6998567
+date-released: 2022-08-16
 url: "https://github.com/ianfucci/nightshift"
 preferred-citation:
   type: article
@@ -20,5 +20,8 @@ preferred-citation:
     orcid: "https://orcid.org/0000-0003-3625-4232"
   doi: "10.1002/pro.4181"
   journal: "Protein Science"
-  year: 2021
+  abbr: "Protein Sci."
+  issue: "1"
+  volume: 31
+  year: 2022
   title: "nightshift: A Python program for plotting simulated NMR spectra from assigned chemical shifts from the Biological Magnetic Resonance Data Bank"
