@@ -1,7 +1,7 @@
 
 # nightshift
 [![PyPi version](https://badgen.net/pypi/v/nightshift/)](https://pypi.org/project/nightshift)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5513075.svg)](https://doi.org/10.5281/zenodo.5513075)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.6998567.svg)](https://doi.org/10.5281/zenodo.6998567)
 
 A python library and command line program for plotting simulated 2D and 3D NMR spectra from assigned chemical shifts from the [BMRB](https://bmrb.io)
 
